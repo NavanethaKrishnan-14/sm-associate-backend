@@ -64,9 +64,15 @@ export async function createFollowUp(req:Request,res:Response){
  res.status(201).json({success:true,data:await followUp.populate("createdBy","name")});
 }
 export async function updateFollowUp(req:Request,res:Response){
- const allowed=["status","nextFollowUpDate"]; const patch:any={};
- for(const key of allowed) if(req.body[key]!==undefined)patch[key]=req.body[key];
- const followUp=await LoanFollowUp.findByIdAndUpdate(req.params.followUpId,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
- if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
- res.json({success:true,data:followUp});
+ const followUp=await LoanFollowUp.findById(req.params.followUpId); if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
+ const patch:any={}; for(const key of ["status","nextFollowUpDate"]) if(req.body[key]!==undefined)patch[key]=req.body[key];
+ if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){
+   if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});
+   const next=await LoanFollowUp.create({loanId:followUp.loanId,followUpDate:new Date(req.body.nextFollowUpDate),note:String(req.body.nextNote).trim(),status:"OPEN",createdBy:req.user?.id});
+   patch.nextFollowUpDate=new Date(req.body.nextFollowUpDate);
+   const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
+   return res.json({success:true,data:updated,nextFollowUp:await next.populate("createdBy","name")});
+ }
+ const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
+ res.json({success:true,data:updated});
 }
