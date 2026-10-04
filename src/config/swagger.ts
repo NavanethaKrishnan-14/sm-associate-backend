@@ -16,7 +16,8 @@ const swaggerDefinition={
     {name:"Customers",description:"Customer management"},
     {name:"Loans",description:"Loan applications and follow-ups"},
     {name:"Cars",description:"Car inventory, expenses and sales"},
-    {name:"Reports",description:"Management reports"}
+    {name:"Reports",description:"Management reports"},
+    {name:"Finance Services",description:"Supported finance and business service catalog"}
   ],
   components:{
     securitySchemes:{bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT"}},
@@ -48,7 +49,8 @@ const swaggerDefinition={
     "/cars/profits":{get:{tags:["Cars"],security:[{bearerAuth:[]}],summary:"Car profit report",responses:{"200":{description:"Profit report"}}}},
     "/reports/dashboard":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Management dashboard",responses:{"200":{description:"Dashboard metrics"}}}},
     "/reports/loan-revenue":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Loan revenue report",responses:{"200":{description:"Revenue report"}}}},
-    "/reports/operational":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Operational management report",responses:{"200":{description:"Operational report"}}}}
+    "/reports/operational":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Operational management report",responses:{"200":{description:"Operational report"}}}},
+    "/finance-services":{get:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"List active finance services",responses:{"200":{description:"Finance service catalog"}}},post:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"Seed/update finance service catalog (ADMIN)",responses:{"200":{description:"Finance service catalog"}}}}
   }
 };
 
