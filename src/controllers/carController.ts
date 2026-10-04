@@ -106,3 +106,21 @@ export async function listCarProfits(_req:Request,res:Response){
  const summary=sales.reduce((a,s)=>({sales:a.sales+s.sellingPrice,investment:a.investment+s.totalInvestment,sellingExpenses:a.sellingExpenses+s.sellingExpenses,profit:a.profit+s.profit}),{sales:0,investment:0,sellingExpenses:0,profit:0});
  res.json({success:true,data:{summary,sales}});
 }
+
+export async function deleteCar(req:Request,res:Response){
+ const car=await Car.findById(req.params.id);
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const sale=await CarSale.findOne({carId:car._id});
+ if(sale||car.status==="SOLD")return res.status(409).json({success:false,message:"Sold vehicles cannot be deleted."});
+ await CarExpense.deleteMany({carId:car._id});
+ await car.deleteOne();
+ res.json({success:true,message:"Vehicle deleted successfully."});
+}
+
+export async function deleteCarExpense(req:Request,res:Response){
+ const expense=await CarExpense.findById(req.params.expenseId);
+ if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
+ if(String(expense.carId)!==String(req.params.id))return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});
+ await expense.deleteOne();
+ res.json({success:true,message:"Expense deleted successfully."});
+}
