@@ -17,7 +17,8 @@ const carSchema=new Schema({
   documents:{
     carBook:{type:Boolean,default:false},
     carInsurance:{type:Boolean,default:false},
-    agreement:{type:Boolean,default:false}
+    agreement:{type:Boolean,default:false},
+    customDocuments:{type:[{type:String,trim:true,maxlength:100}],default:[]}
   }
 },{timestamps:true});
 
