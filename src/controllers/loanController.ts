@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Loan, LOAN_STATUSES } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 import { Customer } from "../models/Customer";
+import { User } from "../models/User";
 import { nextId } from "../utils/sequence";
 
 export async function listLoans(req:Request,res:Response){
@@ -29,13 +30,28 @@ export async function createLoan(req:Request,res:Response){
  res.status(201).json({success:true,data:await loan.populate("customerId","customerId name mobile email city")});
 }
 export async function updateLoan(req:Request,res:Response){
- const allowed=req.user?.role==="ADMIN"?["loanType","requiredAmount","approvedAmount","financeCompany","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]:["loanType","requiredAmount","financeCompany","notes"];
- const patch:any={}; for(const key of allowed) if(req.body[key]!==undefined) patch[key]=req.body[key];
+ const patch:any={};
+ for(const key of ["customerId","loanType","requiredAmount","approvedAmount","financeCompany","status","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]){
+  if(req.body[key]!==undefined)patch[key]=req.body[key];
+ }
+ if(patch.customerId!==undefined){
+  const customer=await Customer.findById(patch.customerId);
+  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
+ }
+ if(patch.assignedTo!==undefined&&patch.assignedTo!==""){
+  const assignee=await User.findById(patch.assignedTo);
+  if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
+ }
  if(patch.requiredAmount!==undefined){patch.requiredAmount=Number(patch.requiredAmount);if(!Number.isFinite(patch.requiredAmount)||patch.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});}
- const loan=await Loan.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city");
+ if(patch.approvedAmount!==undefined){patch.approvedAmount=Number(patch.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
+ if(patch.commission!==undefined){patch.commission=Number(patch.commission);if(!Number.isFinite(patch.commission)||patch.commission<0)return res.status(400).json({success:false,message:"Commission must be a valid non-negative number."});}
+ if(patch.status!==undefined&&!LOAN_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid loan status."});
+ if(patch.assignedTo==="")patch.assignedTo=null;
+ const loan=await Loan.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  res.json({success:true,data:loan});
 }
+
 export async function updateLoanStatus(req:Request,res:Response){
  const rawStatus=String(req.body.status||"");
  const status=rawStatus==="NEW"?"ENTERED":rawStatus;
