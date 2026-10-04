@@ -8,7 +8,7 @@ import { LoanFollowUp } from "../models/LoanFollowUp";
 
 export async function dashboard(req:Request,res:Response){
  const now=new Date(), startMonth=new Date(now.getFullYear(),now.getMonth(),1), startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
- const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue]=await Promise.all([
+ const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue,inventoryExpenses]=await Promise.all([
   Customer.countDocuments(),
   Loan.countDocuments({status:{$in:["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"]}}),
   Car.countDocuments({status:{$in:["AVAILABLE","RESERVED"]}}),
@@ -18,7 +18,8 @@ export async function dashboard(req:Request,res:Response){
   LoanFollowUp.countDocuments({status:"OPEN"}),
   CarSale.find({saleDate:{$gte:startMonth,$lt:startNext}},{profit:1,sellingPrice:1,totalInvestment:1,sellingExpenses:1}),
   Loan.find({createdAt:{$gte:startMonth,$lt:startNext}},{requiredAmount:1,approvedAmount:1,commission:1,status:1}),
-  Car.find({status:{$in:["AVAILABLE","RESERVED"]}},{purchasePrice:1})
+  Car.find({status:{$in:["AVAILABLE","RESERVED"]}},{_id:1,purchasePrice:1}),
+  CarExpense.find({}, {carId:1,amount:1})
  ]);
  const sumSales=(rows:any[])=>rows.reduce((a,s)=>({sales:a.sales+s.sellingPrice,investment:a.investment+s.totalInvestment,expenses:a.expenses+s.sellingExpenses,profit:a.profit+s.profit}),{sales:0,investment:0,expenses:0,profit:0});
  const totals=sumSales(sales), monthlyCar=sumSales(monthSales);
