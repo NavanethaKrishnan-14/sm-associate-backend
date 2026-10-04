@@ -6,6 +6,7 @@ import customerRoutes from "./routes/customerRoutes";
 import carRoutes from "./routes/carRoutes";
 import loanRoutes from "./routes/loanRoutes";
 import reportRoutes from "./routes/reportRoutes";
+import financeServiceRoutes from "./routes/financeServiceRoutes";
 import { requireAuth } from "./middleware/auth";
 import { setupSwagger } from "./config/swagger";
 
@@ -23,6 +24,7 @@ app.use("/api/v1/customers",customerRoutes);
 app.use("/api/v1/cars",carRoutes);
 app.use("/api/v1/loans",loanRoutes);
 app.use("/api/v1/reports",reportRoutes);
+app.use("/api/v1/finance-services",financeServiceRoutes);
 
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
   console.error(err);
