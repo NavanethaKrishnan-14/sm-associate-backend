@@ -7,11 +7,13 @@ import carRoutes from "./routes/carRoutes";
 import loanRoutes from "./routes/loanRoutes";
 import reportRoutes from "./routes/reportRoutes";
 import { requireAuth } from "./middleware/auth";
+import { setupSwagger } from "./config/swagger";
 
 const app=express();
 app.use(cors({origin:process.env.CLIENT_URL?.split(",")??true}));
 app.use(express.json());
 app.use(morgan("dev"));
+setupSwagger(app);
 
 app.get("/api/v1/health",(_req,res)=>res.json({success:true,message:"SM Associate API is running."}));
 app.use("/api/v1/auth",authRoutes);
