@@ -6,7 +6,7 @@ import { Customer } from "../models/Customer";
 import { Loan } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 
-export async function dashboard(_req:Request,res:Response){
+export async function dashboard(req:Request,res:Response){
  const now=new Date(), startMonth=new Date(now.getFullYear(),now.getMonth(),1), startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
  const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue]=await Promise.all([
   Customer.countDocuments(),
@@ -25,7 +25,7 @@ export async function dashboard(_req:Request,res:Response){
  const monthlyLoan=monthLoans.reduce((a,l)=>({required:a.required+l.requiredAmount,approved:a.approved+(l.approvedAmount||0),commission:a.commission+(l.commission||0),count:a.count+1}),{required:0,approved:0,commission:0,count:0});
  const loanPipeline:any={}; for(const x of loanCounts) loanPipeline[x._id]=x.count;
  const currentInventoryValue=inventoryValue.reduce((s,c)=>s+s.purchasePrice,0);
- res.json({success:true,data:{customers,activeLoans,carsInInventory:inventory,carsSold:sold,totalSales:totals.sales,totalInvestment:totals.investment,totalSellingExpenses:totals.expenses,totalProfit:totals.profit,openFollowUps,inventoryValue:currentInventoryValue,loanPipeline,monthly:{carSales:monthlyCar,loans:monthlyLoan}}});
+ const isAdmin=req.user?.role==="ADMIN";\n const data:any={customers,activeLoans,carsInInventory:inventory,carsSold:sold,openFollowUps,loanPipeline};\n if(isAdmin){data.totalSales=totals.sales;data.totalInvestment=totals.investment;data.totalSellingExpenses=totals.expenses;data.totalProfit=totals.profit;data.inventoryValue=currentInventoryValue;data.monthly={carSales:monthlyCar,loans:monthlyLoan};}\n res.json({success:true,data});
 }
 
 export async function loanRevenue(_req:Request,res:Response){
