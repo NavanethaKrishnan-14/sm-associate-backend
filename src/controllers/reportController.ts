@@ -10,7 +10,7 @@ export async function dashboard(req:Request,res:Response){
  const now=new Date(), startMonth=new Date(now.getFullYear(),now.getMonth(),1), startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
  const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue]=await Promise.all([
   Customer.countDocuments(),
-  Loan.countDocuments({status:{$in:["NEW","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"]}}),
+  Loan.countDocuments({status:{$in:["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"]}}),
   Car.countDocuments({status:{$in:["AVAILABLE","RESERVED"]}}),
   Car.countDocuments({status:"SOLD"}),
   CarSale.find({}, {profit:1,sellingPrice:1,totalInvestment:1,sellingExpenses:1}),
