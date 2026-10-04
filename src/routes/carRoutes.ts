@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addCarExpense,createCar,getCarFinancials,listCarExpenses,listCarProfits,listCars,sellCar,updateCarExpense,updateCarStatus } from "../controllers/carController";
+import { addCarExpense,createCar,deleteCar,deleteCarExpense,getCarFinancials,listCarExpenses,listCarProfits,listCars,sellCar,updateCarExpense,updateCarStatus } from "../controllers/carController";
 import { requireAdmin } from "../middleware/auth";
 const router=Router();
 router.get("/",listCars);
@@ -7,8 +7,10 @@ router.get("/expenses",requireAdmin,listCarExpenses);
 router.get("/profits",requireAdmin,listCarProfits);
 router.post("/",createCar);
 router.patch("/:id/status",requireAdmin,updateCarStatus);
+router.delete("/:id",requireAdmin,deleteCar);
 router.get("/:id/financials",requireAdmin,getCarFinancials);
 router.post("/:id/expenses",requireAdmin,addCarExpense);
 router.patch("/:id/expenses/:expenseId",requireAdmin,updateCarExpense);
+router.delete("/:id/expenses/:expenseId",requireAdmin,deleteCarExpense);
 router.post("/:id/sell",requireAdmin,sellCar);
 export default router;
