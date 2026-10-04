@@ -38,10 +38,13 @@ export async function createCar(req:Request,res:Response){
  const allowed=["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes"];
  const data:any={vehicleId:await nextId("CAR","car"),status:"AVAILABLE"};
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
- if(req.body.documents!==undefined){
-  const documents=req.body.documents||{};
-  data.documents={carBook:Boolean(documents.carBook),carInsurance:Boolean(documents.carInsurance),agreement:Boolean(documents.agreement)};
- }
+  if(req.body.documents!==undefined){
+   const documents=req.body.documents||{};
+   const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+   const seen=new Set<string>();
+   const uniqueCustomDocuments=customDocuments.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
+   data.documents={carBook:Boolean(documents.carBook),carInsurance:Boolean(documents.carInsurance),agreement:Boolean(documents.agreement),customDocuments:uniqueCustomDocuments};
+  }
  const car=await Car.create(data);
  res.status(201).json({success:true,data:car});
 }
