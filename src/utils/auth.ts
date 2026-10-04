@@ -1,7 +1,11 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET: string = process.env.JWT_SECRET ?? (()=>{throw new Error("JWT_SECRET is required.");})();
+function getJwtSecret(): string {
+  const secret=process.env.JWT_SECRET;
+  if(!secret)throw new Error("JWT_SECRET is required.");
+  return secret;
+}
 
 export type AuthPayload = { userId: string; role: "ADMIN" | "STAFF" };
 
@@ -14,9 +18,9 @@ export function comparePassword(password: string, hash: string) {
 }
 
 export function signToken(payload: AuthPayload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: "1d" });
 }
 
 export function verifyToken(token: string) {
-  return jwt.verify(token, JWT_SECRET) as unknown as AuthPayload;
+  return jwt.verify(token, getJwtSecret()) as unknown as AuthPayload;
 }
