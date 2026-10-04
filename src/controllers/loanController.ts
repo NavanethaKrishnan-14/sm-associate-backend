@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import fs from "fs";
+import path from "path";
 import { Loan, LOAN_STATUSES } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 import { Customer } from "../models/Customer";
@@ -64,6 +66,93 @@ export async function updateLoanStatus(req:Request,res:Response){
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  res.json({success:true,data:loan});
 }
+function storedLoanDocumentPath(storedName:string){
+ return path.resolve(process.cwd(),"uploads","loans",storedName);
+}
+
+async function removeStoredLoanDocument(storedName?:string){
+ if(!storedName)return;
+ try{await fs.promises.unlink(storedLoanDocumentPath(storedName));}catch(error:any){if(error?.code!=="ENOENT")console.error("Unable to remove old loan document:",error);}
+}
+
+export async function updateLoanDocuments(req:Request,res:Response){
+ const loan=await Loan.findById(req.params.id);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ const input=req.body||{};
+ const current:any=(loan as any).documents||{};
+ const customInput=Array.isArray(input.customDocuments)?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+ const seen=new Set<string>();
+ const customDocuments=customInput.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
+ const next:any={
+  idProof:Boolean(input.idProof),
+  addressProof:Boolean(input.addressProof),
+  incomeProof:Boolean(input.incomeProof),
+  bankStatement:Boolean(input.bankStatement),
+  customDocuments
+ };
+ next.uploads=current.uploads||{};
+ next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
+ for(const key of ["idProof","addressProof","incomeProof","bankStatement"]){
+  if(!next[key]&&next.uploads?.[key]){await removeStoredLoanDocument(next.uploads[key].storedName);delete next.uploads[key];}
+ }
+ next.customUploads=next.customUploads.filter((item:any)=>customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
+ await Promise.all((Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase())).map((item:any)=>removeStoredLoanDocument(item.storedName)));
+ (loan as any).documents=next;
+ await loan.save();
+ const updated=await Loan.findById(loan._id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
+ res.json({success:true,data:updated});
+}
+
+export async function uploadLoanDocument(req:Request,res:Response){
+ const loan=await Loan.findById(req.params.id);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(req.params.documentKey||"");
+ const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
+ const fileMeta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date()};
+ const documents:any=(loan as any).documents||(loan as any).set("documents",{});
+ if(fixedKeys.includes(key)){
+  const previous=documents.uploads?.[key];
+  await removeStoredLoanDocument(previous?.storedName);
+  documents[key]=true;
+  documents.uploads=documents.uploads||{};
+  documents.uploads[key]=fileMeta;
+ }else if(key==="custom"){
+  const documentName=String(req.body.documentName||"").trim().slice(0,100);
+  if(!documentName){await removeStoredLoanDocument(req.file.filename);return res.status(400).json({success:false,message:"Document name is required for a custom document."});}
+  const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
+  if(!customNames.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase()))documents.customDocuments=[...customNames,documentName];
+  const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+  const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+  await removeStoredLoanDocument(previous?.storedName);
+  documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+  documents.customUploads.push({name:documentName,...fileMeta});
+ }else{
+  await removeStoredLoanDocument(req.file.filename);
+  return res.status(400).json({success:false,message:"Invalid document type."});
+ }
+ await loan.save();
+ const updated=await Loan.findById(loan._id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
+ res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:updated});
+}
+
+export async function downloadLoanDocument(req:Request,res:Response){
+ const loan=await Loan.findById(req.params.id);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ const key=String(req.params.documentKey||"");
+ const documents:any=(loan as any).documents||{};
+ let metadata:any;
+ if(["idProof","addressProof","incomeProof","bankStatement"].includes(key))metadata=documents.uploads?.[key];
+ else if(key==="custom"){
+  const documentName=String(req.query.documentName||"").trim();
+  metadata=(Array.isArray(documents.customUploads)?documents.customUploads:[]).find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+ }
+ if(!metadata?.storedName)return res.status(404).json({success:false,message:"Uploaded loan document not found."});
+ const filePath=storedLoanDocumentPath(metadata.storedName);
+ if(!fs.existsSync(filePath))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});
+ res.download(filePath,metadata.originalName);
+}
+
 export async function listFollowUps(req:Request,res:Response){
  const filter:any={}; if(req.params.id)filter.loanId=req.params.id; if(req.query.status)filter.status=String(req.query.status);
  const rows=await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1});
