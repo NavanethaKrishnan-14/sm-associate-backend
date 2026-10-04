@@ -48,9 +48,13 @@ export async function getCustomerHistory(req:Request,res:Response){
  const customer=await Customer.findById(req.params.id);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const [loans,carsBought,carsSold]=await Promise.all([
-  Loan.find({customerId:customer._id}).sort({createdAt:-1}),
+  Loan.find({customerId:customer._id}).populate("assignedTo","name email").sort({createdAt:-1}),
   CarSale.find({buyerId:customer._id}).populate("carId").sort({saleDate:-1}),
   Car.find({sellerId:customer._id}).sort({createdAt:-1})
  ]);
- res.json({success:true,data:{customer,loans,carsBought,carsSold}});
+ const loanCommission=loans.reduce((sum,loan)=>sum+(loan.commission||0),0);
+ const loanApprovedAmount=loans.reduce((sum,loan)=>sum+(loan.approvedAmount||0),0);
+ const carsBoughtValue=carsBought.reduce((sum,sale)=>sum+sale.sellingPrice,0);
+ const carsSoldValue=carsSold.reduce((sum,car)=>sum+car.purchasePrice,0);
+ res.json({success:true,data:{customer,loans,carsBought,carsSold,summary:{loanCount:loans.length,loanCommission,loanApprovedAmount,carsBoughtCount:carsBought.length,carsBoughtValue,carsSoldCount:carsSold.length,carsSoldValue}}});
 }
