@@ -22,6 +22,12 @@ export async function createCar(req:Request,res:Response){
  const car=await Car.create(data);
  res.status(201).json({success:true,data:car});
 }
+export async function listCarExpenses(req:Request,res:Response){
+ const carId=req.query.carId?String(req.query.carId):undefined;
+ const filter:any=carId?{carId}:{};
+ const expenses=await CarExpense.find(filter).populate("carId","vehicleId registrationNumber make model year purchasePrice").sort({date:-1,createdAt:-1});
+ res.json({success:true,data:expenses});
+}
 export async function addCarExpense(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
@@ -32,6 +38,19 @@ export async function addCarExpense(req:Request,res:Response){
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
  const expense=await CarExpense.create(data);
  res.status(201).json({success:true,data:expense});
+}
+export async function updateCarExpense(req:Request,res:Response){
+ const expense=await CarExpense.findById(req.params.expenseId);
+ if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
+ if(req.body.amount!==undefined){
+  const amount=Number(req.body.amount);
+  if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid positive number."});
+  expense.amount=amount;
+ }
+ for(const key of ["category","description","date"]) if(req.body[key]!==undefined) (expense as any)[key]=req.body[key];
+ await expense.save();
+ const updated=await CarExpense.findById(expense._id).populate("carId","vehicleId registrationNumber make model year purchasePrice");
+ res.json({success:true,data:updated});
 }
 export async function getCarFinancials(req:Request,res:Response){
  const car=await Car.findById(req.params.id).populate("sellerId","customerId name mobile");
