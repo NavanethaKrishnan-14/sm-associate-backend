@@ -109,6 +109,12 @@ export async function listCars(req:Request,res:Response){
  res.json({success:true,data});
 }
 
+export async function updateCarStatus(req:Request,res:Response){
+ const status=String(req.body.status||"");
+ req.body={status};
+ return updateCar(req,res);
+}
+
 export async function updateCar(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
