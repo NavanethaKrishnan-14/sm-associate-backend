@@ -76,3 +76,19 @@ export async function updateFollowUp(req:Request,res:Response){
  const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
  res.json({success:true,data:updated});
 }
+
+export async function deleteLoan(req:Request,res:Response){
+ const loan=await Loan.findById(req.params.id);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ await LoanFollowUp.deleteMany({loanId:loan._id});
+ await loan.deleteOne();
+ res.json({success:true,message:"Loan deleted successfully."});
+}
+
+export async function deleteFollowUp(req:Request,res:Response){
+ const followUp=await LoanFollowUp.findById(req.params.followUpId);
+ if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
+ if(String(followUp.loanId)!==String(req.params.id))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
+ await followUp.deleteOne();
+ res.json({success:true,message:"Follow-up deleted successfully."});
+}
