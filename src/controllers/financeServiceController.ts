@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { FinanceService, FINANCE_SERVICE_TYPES } from "../models/FinanceService";
+import { FinanceService } from "../models/FinanceService";
 
 const catalog=[
   {code:"HOME_LOAN",name:"Home Loan",category:"LOAN",description:"Housing finance assistance.",sortOrder:1},
