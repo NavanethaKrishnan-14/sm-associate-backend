@@ -22,10 +22,22 @@ export async function getLoan(req:Request,res:Response){
 export async function createLoan(req:Request,res:Response){
  const customer=await Customer.findById(req.body.customerId);
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
- const allowed=["customerId","loanType","requiredAmount","financeCompany","notes"];
+ const allowed=["customerId","loanType","requiredAmount","financeCompany","notes","documents"];
  if(req.user?.role==="ADMIN") allowed.push("approvedAmount","commission","applicationDate","expectedDisbursementDate","disbursementDate","rejectionReason","assignedTo");
  const data:any={loanId:await nextId("LOAN","loan"),status:"ENTERED"};
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
+ if(data.documents){
+  const docs=data.documents||{};
+  const customDocuments=Array.isArray(docs.customDocuments)?docs.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+  const seen=new Set<string>();
+  data.documents={
+   idProof:Boolean(docs.idProof),
+   addressProof:Boolean(docs.addressProof),
+   incomeProof:Boolean(docs.incomeProof),
+   bankStatement:Boolean(docs.bankStatement),
+   customDocuments:customDocuments.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;})
+  };
+ }
  if(!data.loanType||!Number.isFinite(Number(data.requiredAmount))||Number(data.requiredAmount)<0)return res.status(400).json({success:false,message:"Loan type and a valid required amount are required."});
  data.requiredAmount=Number(data.requiredAmount); if(data.commission!==undefined)data.commission=Number(data.commission);
  const loan=await Loan.create(data);
