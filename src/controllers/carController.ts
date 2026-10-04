@@ -11,7 +11,11 @@ export async function listCars(req:Request,res:Response){
  const filter:any=status?{status}:{};
  if(search) filter.$or=[{registrationNumber:{$regex:search,$options:"i"}},{vehicleId:{$regex:search,$options:"i"}},{make:{$regex:search,$options:"i"}},{model:{$regex:search,$options:"i"}}];
  const cars=await Car.find(filter).populate("sellerId","customerId name mobile").sort({createdAt:-1});
- res.json({success:true,data:cars});
+ const carIds=cars.map(car=>car._id);
+ const expenseRows=carIds.length?await CarExpense.aggregate([{$match:{carId:{$in:carIds}}},{$group:{_id:"$carId",total:{$sum:"$amount"}}}]):[];
+ const expenseMap=new Map(expenseRows.map(row=>[String(row._id),Number(row.total||0)]));
+ const data=cars.map(car=>{const expenseTotal=expenseMap.get(String(car._id))||0;return {...car.toObject(),expenseTotal,totalInvestment:car.purchasePrice+expenseTotal};});
+ res.json({success:true,data});
 }
 export async function createCar(req:Request,res:Response){
  const seller=await Customer.findById(req.body.sellerId);
