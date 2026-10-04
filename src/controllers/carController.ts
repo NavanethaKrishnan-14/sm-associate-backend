@@ -17,6 +17,21 @@ export async function listCars(req:Request,res:Response){
  const data=cars.map(car=>{const expenseTotal=expenseMap.get(String(car._id))||0;return {...car.toObject(),expenseTotal,totalInvestment:car.purchasePrice+expenseTotal};});
  res.json({success:true,data});
 }
+
+export async function updateCarStatus(req:Request,res:Response){
+ const car=await Car.findById(req.params.id);
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const status=String(req.body.status||"");
+ if(!["AVAILABLE","RESERVED","SOLD"].includes(status))return res.status(400).json({success:false,message:"Invalid car status."});
+ if(status==="SOLD"){
+  const sale=await CarSale.findOne({carId:car._id});
+  if(!sale)return res.status(400).json({success:false,message:"A car can be marked SOLD only after a sale is recorded."});
+ }
+ car.status=status as any;
+ await car.save();
+ const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile");
+ res.json({success:true,data:updated});
+}
 export async function createCar(req:Request,res:Response){
  const seller=await Customer.findById(req.body.sellerId);
  if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
