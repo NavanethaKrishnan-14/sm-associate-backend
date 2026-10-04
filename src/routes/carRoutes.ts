@@ -8,6 +8,7 @@ router.get("/expenses",requireAdmin,listCarExpenses);
 router.get("/profits",requireAdmin,listCarProfits);
 router.post("/",createCar);
 router.patch("/:id/status",requireAdmin,updateCarStatus);
+router.patch("/:id",requireAdmin,updateCar);
 router.delete("/:id",requireAdmin,deleteCar);
 router.get("/:id/financials",requireAdmin,getCarFinancials);
 router.patch("/:id/documents",requireAdmin,updateCarDocuments);
