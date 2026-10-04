@@ -6,7 +6,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test:smoke": "npm run build && node scripts/smoke-test.cjs"
+    "test:smoke": "npm run build && node scripts/smoke-test.cjs",
+    "seed:demo": "tsx scripts/seed-demo-data.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
