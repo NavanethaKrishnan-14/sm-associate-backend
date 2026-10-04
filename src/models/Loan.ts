@@ -18,7 +18,47 @@ const loanSchema=new Schema({
   commission:{type:Number,default:0,min:0},
   rejectionReason:{type:String,trim:true},
   notes:{type:String,trim:true},
-  assignedTo:{type:Schema.Types.ObjectId,ref:"User"}
+  assignedTo:{type:Schema.Types.ObjectId,ref:"User"},
+  documents:{
+    idProof:{type:Boolean,default:false},
+    addressProof:{type:Boolean,default:false},
+    incomeProof:{type:Boolean,default:false},
+    bankStatement:{type:Boolean,default:false},
+    customDocuments:{type:[{type:String,trim:true,maxlength:100}],default:[]},
+    uploads:{
+      idProof:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      },
+      addressProof:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      },
+      incomeProof:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      },
+      bankStatement:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      }
+    },
+    customUploads:[{
+      name:{type:String,trim:true,maxlength:100},
+      originalName:{type:String},
+      storedName:{type:String},
+      size:{type:Number},
+      uploadedAt:{type:Date}
+    }]
+  }
 },{timestamps:true});
 
 export const Loan=model("Loan",loanSchema);
