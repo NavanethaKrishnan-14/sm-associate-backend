@@ -25,7 +25,10 @@ export async function dashboard(req:Request,res:Response){
  const monthlyLoan=monthLoans.reduce((a,l)=>({required:a.required+l.requiredAmount,approved:a.approved+(l.approvedAmount||0),commission:a.commission+(l.commission||0),count:a.count+1}),{required:0,approved:0,commission:0,count:0});
  const loanPipeline:any={}; for(const x of loanCounts) loanPipeline[x._id]=x.count;
  const currentInventoryValue=inventoryValue.reduce((s,c)=>s+s.purchasePrice,0);
- const isAdmin=req.user?.role==="ADMIN";\n const data:any={customers,activeLoans,carsInInventory:inventory,carsSold:sold,openFollowUps,loanPipeline};\n if(isAdmin){data.totalSales=totals.sales;data.totalInvestment=totals.investment;data.totalSellingExpenses=totals.expenses;data.totalProfit=totals.profit;data.inventoryValue=currentInventoryValue;data.monthly={carSales:monthlyCar,loans:monthlyLoan};}\n res.json({success:true,data});
+ const isAdmin=req.user?.role==="ADMIN";
+ const data:any={customers,activeLoans,carsInInventory:inventory,carsSold:sold,openFollowUps,loanPipeline};
+ if(isAdmin){data.totalSales=totals.sales;data.totalInvestment=totals.investment;data.totalSellingExpenses=totals.expenses;data.totalProfit=totals.profit;data.inventoryValue=currentInventoryValue;data.monthly={carSales:monthlyCar,loans:monthlyLoan};}
+ res.json({success:true,data});
 }
 
 export async function loanRevenue(_req:Request,res:Response){
