@@ -17,6 +17,33 @@ async function removeStoredCarDocument(storedName?:string){
  try{await fs.promises.unlink(storedCarDocumentPath(storedName));}catch(error:any){if(error?.code!=="ENOENT")console.error("Unable to remove old car document:",error);}
 }
 
+export async function updateCarDocuments(req:Request,res:Response){
+ const car=await Car.findById(req.params.id);
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const input=req.body||{};
+ const current:any=(car as any).documents||{};
+ const customInput=Array.isArray(input.customDocuments)?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+ const seen=new Set<string>();
+ const customDocuments=customInput.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
+ const next:any={
+  carBook:Boolean(input.carBook),
+  carInsurance:Boolean(input.carInsurance),
+  agreement:Boolean(input.agreement),
+  customDocuments
+ };
+ next.uploads=current.uploads||{};
+ next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
+ for(const key of ["carBook","carInsurance","agreement"]){
+  if(!next[key]&&next.uploads?.[key]){await removeStoredCarDocument(next.uploads[key].storedName);delete next.uploads[key];}
+ }
+ next.customUploads=next.customUploads.filter((item:any)=>customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
+ await Promise.all((Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase())).map((item:any)=>removeStoredCarDocument(item.storedName)));
+ (car as any).documents=next;
+ await car.save();
+ const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
+ res.json({success:true,data:updated});
+}
+
 export async function uploadCarDocument(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
