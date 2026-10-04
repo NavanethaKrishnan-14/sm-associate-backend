@@ -16,3 +16,11 @@ API: http://localhost:5000/api/v1
 Health: GET /api/v1/health
 
 Car profit = selling price - purchase price - buying expenses - selling expenses.
+
+## Swagger / OpenAPI
+
+Interactive API documentation is available at:
+
+http://localhost:5000/api-docs
+
+The Swagger UI documents the REST endpoints and supports JWT authentication through the Authorize button. Start the backend with npm run dev, open the documentation URL, sign in through POST /api/v1/auth/login, and use the returned JWT as Bearer <token>.
