@@ -42,3 +42,16 @@ export async function updateUser(req:Request,res:Response){
  target.role=role; target.isActive=isActive; await target.save();
  res.json({success:true,data:publicUser(target)});
 }
+
+
+export async function deleteUser(req:Request,res:Response){
+ const target=await User.findById(req.params.id);
+ if(!target)return res.status(404).json({success:false,message:"User not found."});
+ if(String(target._id)===req.user?.id)return res.status(400).json({success:false,message:"You cannot delete your own account."});
+ if(target.role==="ADMIN"&&target.isActive){
+   const activeAdmins=await User.countDocuments({role:"ADMIN",isActive:true});
+   if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
+ }
+ await target.deleteOne();
+ res.json({success:true,message:"User deleted successfully."});
+}
