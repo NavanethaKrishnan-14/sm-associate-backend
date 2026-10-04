@@ -21,7 +21,7 @@ export async function createLoan(req:Request,res:Response){
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
  const allowed=["customerId","loanType","requiredAmount","financeCompany","notes"];
  if(req.user?.role==="ADMIN") allowed.push("approvedAmount","commission","applicationDate","expectedDisbursementDate","disbursementDate","rejectionReason","assignedTo");
- const data:any={loanId:await nextId("LOAN","loan")};
+ const data:any={loanId:await nextId("LOAN","loan"),status:"ENTERED"};
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
  if(!data.loanType||!Number.isFinite(Number(data.requiredAmount))||Number(data.requiredAmount)<0)return res.status(400).json({success:false,message:"Loan type and a valid required amount are required."});
  data.requiredAmount=Number(data.requiredAmount); if(data.commission!==undefined)data.commission=Number(data.commission);
@@ -37,7 +37,9 @@ export async function updateLoan(req:Request,res:Response){
  res.json({success:true,data:loan});
 }
 export async function updateLoanStatus(req:Request,res:Response){
- const status=String(req.body.status||""); if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
+ const rawStatus=String(req.body.status||"");
+ const status=rawStatus==="NEW"?"ENTERED":rawStatus;
+ if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
  const patch:any={status};
  if(status==="APPROVED"&&req.body.approvedAmount!==undefined){if(req.user?.role!=="ADMIN")return res.status(403).json({success:false,message:"Only ADMIN can set an approved loan amount."});patch.approvedAmount=Number(req.body.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
  if(status==="DISBURSED")patch.disbursementDate=req.body.disbursementDate||new Date();
@@ -49,12 +51,9 @@ export async function updateLoanStatus(req:Request,res:Response){
 export async function listFollowUps(req:Request,res:Response){
  const filter:any={}; if(req.params.id)filter.loanId=req.params.id; if(req.query.status)filter.status=String(req.query.status);
  const rows=await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1});
- const now=new Date(); const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const tomorrow=new Date(start); tomorrow.setDate(tomorrow.getDate()+1);
+ const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),now.getDate()),tomorrow=new Date(start); tomorrow.setDate(tomorrow.getDate()+1);
  const nextWeek=new Date(start); nextWeek.setDate(nextWeek.getDate()+7);
- const open=rows.filter(x=>x.status==="OPEN");
- const overdue=open.filter(x=>x.followUpDate<start);
- const dueToday=open.filter(x=>x.followUpDate>=start&&x.followUpDate<tomorrow);
- const upcoming=open.filter(x=>x.followUpDate>=tomorrow&&x.followUpDate<nextWeek);
+ const open=rows.filter(x=>x.status==="OPEN"),overdue=open.filter(x=>x.followUpDate<start),dueToday=open.filter(x=>x.followUpDate>=start&&x.followUpDate<tomorrow),upcoming=open.filter(x=>x.followUpDate>=tomorrow&&x.followUpDate<nextWeek);
  res.json({success:true,data:rows,summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
 }
 export async function createFollowUp(req:Request,res:Response){
