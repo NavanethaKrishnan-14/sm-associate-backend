@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { addCarExpense,createCar,deleteCar,deleteCarExpense,getCarFinancials,listCarExpenses,listCarProfits,listCars,sellCar,updateCarExpense,updateCarStatus } from "../controllers/carController";
+import { addCarExpense,createCar,deleteCar,deleteCarExpense,downloadCarDocument,getCarFinancials,listCarExpenses,listCarProfits,listCars,sellCar,updateCarExpense,updateCarStatus,uploadCarDocument } from "../controllers/carController";
+import { carDocumentUpload } from "../middleware/carDocumentUpload";
 import { requireAdmin } from "../middleware/auth";
 const router=Router();
 router.get("/",listCars);
@@ -9,6 +10,8 @@ router.post("/",createCar);
 router.patch("/:id/status",requireAdmin,updateCarStatus);
 router.delete("/:id",requireAdmin,deleteCar);
 router.get("/:id/financials",requireAdmin,getCarFinancials);
+router.post("/:id/documents/:documentKey",carDocumentUpload.single("file"),uploadCarDocument);
+router.get("/:id/documents/:documentKey/download",downloadCarDocument);
 router.post("/:id/expenses",requireAdmin,addCarExpense);
 router.patch("/:id/expenses/:expenseId",requireAdmin,updateCarExpense);
 router.delete("/:id/expenses/:expenseId",requireAdmin,deleteCarExpense);
