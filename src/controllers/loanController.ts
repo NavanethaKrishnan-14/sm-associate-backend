@@ -48,7 +48,14 @@ export async function updateLoanStatus(req:Request,res:Response){
 }
 export async function listFollowUps(req:Request,res:Response){
  const filter:any={}; if(req.params.id)filter.loanId=req.params.id; if(req.query.status)filter.status=String(req.query.status);
- res.json({success:true,data:await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1})});
+ const rows=await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1});
+ const now=new Date(); const start=new Date(now.getFullYear(),now.getMonth(),now.getDate()); const tomorrow=new Date(start); tomorrow.setDate(tomorrow.getDate()+1);
+ const nextWeek=new Date(start); nextWeek.setDate(nextWeek.getDate()+7);
+ const open=rows.filter(x=>x.status==="OPEN");
+ const overdue=open.filter(x=>x.followUpDate<start);
+ const dueToday=open.filter(x=>x.followUpDate>=start&&x.followUpDate<tomorrow);
+ const upcoming=open.filter(x=>x.followUpDate>=tomorrow&&x.followUpDate<nextWeek);
+ res.json({success:true,data:rows,summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
 }
 export async function createFollowUp(req:Request,res:Response){
  const loan=await Loan.findById(req.params.id); if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
