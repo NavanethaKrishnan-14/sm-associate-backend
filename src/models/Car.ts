@@ -13,7 +13,12 @@ const carSchema=new Schema({
   purchasePrice:{type:Number,required:true,min:0},
   status:{type:String,enum:["AVAILABLE","RESERVED","SOLD"],default:"AVAILABLE",index:true},
   purchaseDate:{type:Date,default:Date.now},
-  notes:{type:String,trim:true}
+  notes:{type:String,trim:true},
+  documents:{
+    carBook:{type:Boolean,default:false},
+    carInsurance:{type:Boolean,default:false},
+    agreement:{type:Boolean,default:false}
+  }
 },{timestamps:true});
 
 export const Car=model("Car",carSchema);
