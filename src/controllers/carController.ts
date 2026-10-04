@@ -37,7 +37,7 @@ export async function uploadCarDocument(req:Request,res:Response){
   if(!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
   const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
   if(!customNames.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())){
-   return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
+   documents.customDocuments=[...customNames,documentName];
   }
   const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
   const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
