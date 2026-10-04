@@ -1,9 +1,73 @@
 import { Request, Response } from "express";
+import fs from "fs";
+import path from "path";
 import { Car } from "../models/Car";
 import { CarExpense } from "../models/CarExpense";
 import { CarSale } from "../models/CarSale";
 import { Customer } from "../models/Customer";
 import { nextId } from "../utils/sequence";
+
+
+function storedCarDocumentPath(storedName:string){
+ return path.resolve(process.cwd(),"uploads","cars",storedName);
+}
+
+async function removeStoredCarDocument(storedName?:string){
+ if(!storedName)return;
+ try{await fs.promises.unlink(storedCarDocumentPath(storedName));}catch(error:any){if(error?.code!=="ENOENT")console.error("Unable to remove old car document:",error);}
+}
+
+export async function uploadCarDocument(req:Request,res:Response){
+ const car=await Car.findById(req.params.id);
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(req.params.documentKey||"");
+ const fixedKeys=["carBook","carInsurance","agreement"];
+ const fileMeta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date()};
+ const documents:any=(car as any).documents||(car as any).set("documents",{});
+
+ if(fixedKeys.includes(key)){
+  const previous=documents.uploads?.[key];
+  await removeStoredCarDocument(previous?.storedName);
+  documents[key]=true;
+  documents.uploads=documents.uploads||{};
+  documents.uploads[key]=fileMeta;
+ }else if(key==="custom"){
+  const documentName=String(req.body.documentName||"").trim().slice(0,100);
+  if(!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
+  const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
+  if(!customNames.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())){
+   return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
+  }
+  const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+  const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+  await removeStoredCarDocument(previous?.storedName);
+  documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+  documents.customUploads.push({name:documentName,...fileMeta});
+ }else{
+  await removeStoredCarDocument(req.file.filename);
+  return res.status(400).json({success:false,message:"Invalid document type."});
+ }
+ await car.save();
+ res.status(201).json({success:true,message:"Document uploaded successfully.",data:car});
+}
+
+export async function downloadCarDocument(req:Request,res:Response){
+ const car=await Car.findById(req.params.id);
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const key=String(req.params.documentKey||"");
+ const documents:any=(car as any).documents||{};
+ let metadata:any;
+ if(["carBook","carInsurance","agreement"].includes(key)) metadata=documents.uploads?.[key];
+ else if(key==="custom"){
+  const documentName=String(req.query.documentName||"").trim();
+  metadata=(Array.isArray(documents.customUploads)?documents.customUploads:[]).find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+ }
+ if(!metadata?.storedName)return res.status(404).json({success:false,message:"Uploaded document not found."});
+ const filePath=storedCarDocumentPath(metadata.storedName);
+ if(!fs.existsSync(filePath))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});
+ res.download(filePath,metadata.originalName);
+}
 
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined;
