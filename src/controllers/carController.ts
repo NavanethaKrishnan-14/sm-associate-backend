@@ -109,18 +109,31 @@ export async function listCars(req:Request,res:Response){
  res.json({success:true,data});
 }
 
-export async function updateCarStatus(req:Request,res:Response){
+export async function updateCar(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
- const status=String(req.body.status||"");
- if(!["AVAILABLE","RESERVED","SOLD"].includes(status))return res.status(400).json({success:false,message:"Invalid car status."});
- if(status==="SOLD"){
-  const sale=await CarSale.findOne({carId:car._id});
-  if(!sale)return res.status(400).json({success:false,message:"A car can be marked SOLD only after a sale is recorded."});
+ const patch:any={};
+ for(const key of ["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes","status"]){
+  if(req.body[key]!==undefined)patch[key]=req.body[key];
  }
- car.status=status as any;
- await car.save();
- const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile");
+ if(patch.sellerId!==undefined){
+  const seller=await Customer.findById(patch.sellerId);
+  if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
+ }
+ if(patch.status!==undefined){
+  const status=String(patch.status);
+  if(!["AVAILABLE","RESERVED","SOLD"].includes(status))return res.status(400).json({success:false,message:"Invalid car status."});
+  if(status==="SOLD"){
+   const sale=await CarSale.findOne({carId:car._id});
+   if(!sale)return res.status(400).json({success:false,message:"A car can be marked SOLD only after a sale is recorded."});
+  }
+ }
+ if(patch.year!==undefined)patch.year=Number(patch.year);
+ if(patch.ownerNumber!==undefined)patch.ownerNumber=Number(patch.ownerNumber);
+ if(patch.km!==undefined)patch.km=Number(patch.km);
+ if(patch.purchasePrice!==undefined)patch.purchasePrice=Number(patch.purchasePrice);
+ if(patch.purchasePrice!==undefined&&(!Number.isFinite(patch.purchasePrice)||patch.purchasePrice<0))return res.status(400).json({success:false,message:"Purchase price must be a valid non-negative number."});
+ const updated=await Car.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("sellerId","customerId name mobile email city");
  res.json({success:true,data:updated});
 }
 export async function createCar(req:Request,res:Response){
