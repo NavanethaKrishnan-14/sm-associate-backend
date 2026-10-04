@@ -1,7 +1,7 @@
 import { Schema, model } from "mongoose";
 
 export const LOAN_STATUSES=[
-  "NEW","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED","REJECTED","DISBURSED","CLOSED"
+  "ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED","REJECTED","DISBURSED","CLOSED"
 ] as const;
 
 const loanSchema=new Schema({
@@ -11,7 +11,7 @@ const loanSchema=new Schema({
   requiredAmount:{type:Number,required:true,min:0},
   approvedAmount:{type:Number,min:0},
   financeCompany:{type:String,trim:true},
-  status:{type:String,enum:LOAN_STATUSES,default:"NEW",index:true},
+  status:{type:String,enum:LOAN_STATUSES,default:"ENTERED",index:true},
   applicationDate:{type:Date,default:Date.now},
   expectedDisbursementDate:{type:Date},
   disbursementDate:{type:Date},
