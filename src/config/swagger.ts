@@ -17,7 +17,8 @@ const swaggerDefinition={
     {name:"Loans",description:"Loan applications and follow-ups"},
     {name:"Cars",description:"Car inventory, expenses and sales"},
     {name:"Reports",description:"Management reports"},
-    {name:"Finance Services",description:"Supported finance and business service catalog"}
+    {name:"Finance Services",description:"Supported finance and business service catalog"},
+    {name:"Finance Enquiries",description:"Customer enquiries across finance services"}
   ],
   components:{
     securitySchemes:{bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT"}},
@@ -50,7 +51,9 @@ const swaggerDefinition={
     "/reports/dashboard":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Management dashboard",responses:{"200":{description:"Dashboard metrics"}}}},
     "/reports/loan-revenue":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Loan revenue report",responses:{"200":{description:"Revenue report"}}}},
     "/reports/operational":{get:{tags:["Reports"],security:[{bearerAuth:[]}],summary:"Operational management report",responses:{"200":{description:"Operational report"}}}},
-    "/finance-services":{get:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"List active finance services",responses:{"200":{description:"Finance service catalog"}}},post:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"Seed/update finance service catalog (ADMIN)",responses:{"200":{description:"Finance service catalog"}}}}
+    "/finance-services":{get:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"List active finance services",responses:{"200":{description:"Finance service catalog"}}},post:{tags:["Finance Services"],security:[{bearerAuth:[]}],summary:"Seed/update finance service catalog (ADMIN)",responses:{"200":{description:"Finance service catalog"}}}},
+    "/finance-enquiries":{get:{tags:["Finance Enquiries"],security:[{bearerAuth:[]}],summary:"List finance enquiries",responses:{"200":{description:"Finance enquiries"}}},post:{tags:["Finance Enquiries"],security:[{bearerAuth:[]}],summary:"Create finance enquiry",responses:{"201":{description:"Enquiry created"}}}},
+    "/finance-enquiries/{id}":{patch:{tags:["Finance Enquiries"],security:[{bearerAuth:[]}],summary:"Update finance enquiry",parameters:[{name:"id",in:"path",required:true,schema:{type:"string"}}],responses:{"200":{description:"Updated enquiry"}}}}
   }
 };
 
