@@ -1,8 +1,7 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error("JWT_SECRET is required.");
+const JWT_SECRET: string = process.env.JWT_SECRET ?? (()=>{throw new Error("JWT_SECRET is required.");})();
 
 export type AuthPayload = { userId: string; role: "ADMIN" | "STAFF" };
 
@@ -19,5 +18,5 @@ export function signToken(payload: AuthPayload) {
 }
 
 export function verifyToken(token: string) {
-  return jwt.verify(token, JWT_SECRET) as AuthPayload;
+  return jwt.verify(token, JWT_SECRET) as unknown as AuthPayload;
 }
