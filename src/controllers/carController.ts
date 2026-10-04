@@ -97,20 +97,42 @@ export async function updateCarStatus(req:Request,res:Response){
  res.json({success:true,data:updated});
 }
 export async function createCar(req:Request,res:Response){
- const seller=await Customer.findById(req.body.sellerId);
- if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
+ let seller:any=null;
+ if(req.body.sellerId){
+  seller=await Customer.findById(req.body.sellerId);
+  if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
+ }else{
+  const sellerInput=req.body.seller||{};
+  const sellerName=String(sellerInput.name??"").trim();
+  const sellerMobile=String(sellerInput.mobile??"").trim();
+  if(!sellerName||!sellerMobile)return res.status(400).json({success:false,message:"Seller name and mobile are required."});
+  seller=await Customer.create({
+   customerId:await nextId("CUS","customer"),
+   name:sellerName,
+   mobile:sellerMobile,
+   alternateMobile:sellerInput.alternateMobile,
+   email:sellerInput.email,
+   address:sellerInput.address,
+   city:sellerInput.city,
+   occupation:sellerInput.occupation,
+   pan:sellerInput.pan,
+   aadhaarLast4:sellerInput.aadhaarLast4,
+   notes:sellerInput.notes
+  });
+ }
  const allowed=["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes"];
- const data:any={vehicleId:await nextId("CAR","car"),status:"AVAILABLE"};
- for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
-  if(req.body.documents!==undefined){
-   const documents=req.body.documents||{};
-   const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
-   const seen=new Set<string>();
-   const uniqueCustomDocuments=customDocuments.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
-   data.documents={carBook:Boolean(documents.carBook),carInsurance:Boolean(documents.carInsurance),agreement:Boolean(documents.agreement),customDocuments:uniqueCustomDocuments};
-  }
+ const data:any={vehicleId:await nextId("CAR","car"),sellerId:seller._id,status:"AVAILABLE"};
+ for(const key of allowed) if(key!=="sellerId"&&req.body[key]!==undefined)data[key]=req.body[key];
+ if(req.body.documents!==undefined){
+  const documents=req.body.documents||{};
+  const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+  const seen=new Set<string>();
+  const uniqueCustomDocuments=customDocuments.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
+  data.documents={carBook:Boolean(documents.carBook),carInsurance:Boolean(documents.carInsurance),agreement:Boolean(documents.agreement),customDocuments:uniqueCustomDocuments};
+ }
  const car=await Car.create(data);
- res.status(201).json({success:true,data:car});
+ const populated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
+ res.status(201).json({success:true,data:{car:populated,seller}});
 }
 export async function listCarExpenses(req:Request,res:Response){
  const carId=req.query.carId?String(req.query.carId):undefined;
