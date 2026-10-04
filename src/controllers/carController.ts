@@ -168,10 +168,61 @@ export async function sellCar(req:Request,res:Response){
  if(!Number.isFinite(sellingPrice)||sellingPrice<0)return res.status(400).json({success:false,message:"Selling price must be a valid number."});
  if(!Number.isFinite(sellingExpenses)||sellingExpenses<0)return res.status(400).json({success:false,message:"Selling expenses must be a valid number."});
  const profit=sellingPrice-totalInvestment-sellingExpenses;
- const sale=await CarSale.create({saleId:await nextId("SALE","carSale"),carId:car._id,buyerId:buyer._id,sellingPrice,sellingExpenses,totalInvestment,profit,saleDate:req.body.saleDate??new Date(),notes:req.body.notes});
+ const sale=await CarSale.create({saleId:await nextId("SALE","carSale"),carId:car._id,buyerId:buyer._id,sellingPrice,sellingExpenses,totalInvestment,profit,saleDate:req.body.saleDate??new Date(),notes:req.body.notes,documents:{idProof:Boolean(req.body.documents?.idProof),agreement:Boolean(req.body.documents?.agreement),customDocuments:Array.isArray(req.body.documents?.customDocuments)?req.body.documents.customDocuments:[]}});
  car.status="SOLD"; await car.save();
  res.status(201).json({success:true,data:sale});
 }
+
+export async function uploadSaleDocument(req:Request,res:Response){
+ const sale=await CarSale.findOne({carId:req.params.id});
+ if(!sale)return res.status(404).json({success:false,message:"Sale not found. Complete the vehicle sale first."});
+ if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(req.params.documentKey||"");
+ const fixedKeys=["idProof","agreement"];
+ const fileMeta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date()};
+ const documents:any=(sale as any).documents||(sale as any).set("documents",{});
+ if(fixedKeys.includes(key)){
+  const previous=documents.uploads?.[key];
+  await removeStoredCarDocument(previous?.storedName);
+  documents[key]=true;
+  documents.uploads=documents.uploads||{};
+  documents.uploads[key]=fileMeta;
+ }else if(key==="custom"){
+  const documentName=String(req.body.documentName||"").trim().slice(0,100);
+  if(!documentName){await removeStoredCarDocument(req.file.filename);return res.status(400).json({success:false,message:"Document name is required for a custom document."});}
+  const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
+  if(!customNames.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())){await removeStoredCarDocument(req.file.filename);return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});}
+  const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+  const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+  await removeStoredCarDocument(previous?.storedName);
+  documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+  documents.customUploads.push({name:documentName,...fileMeta});
+ }else{
+  await removeStoredCarDocument(req.file.filename);
+  return res.status(400).json({success:false,message:"Invalid sale document type."});
+ }
+ await sale.save();
+ const updated=await CarSale.findById(sale._id).populate("buyerId","customerId name mobile");
+ res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
+}
+
+export async function downloadSaleDocument(req:Request,res:Response){
+ const sale=await CarSale.findOne({carId:req.params.id});
+ if(!sale)return res.status(404).json({success:false,message:"Sale not found."});
+ const key=String(req.params.documentKey||"");
+ const documents:any=(sale as any).documents||{};
+ let metadata:any;
+ if(["idProof","agreement"].includes(key)) metadata=documents.uploads?.[key];
+ else if(key==="custom"){
+  const documentName=String(req.query.documentName||"").trim();
+  metadata=(Array.isArray(documents.customUploads)?documents.customUploads:[]).find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+ }
+ if(!metadata?.storedName)return res.status(404).json({success:false,message:"Uploaded buyer document not found."});
+ const filePath=storedCarDocumentPath(metadata.storedName);
+ if(!fs.existsSync(filePath))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});
+ res.download(filePath,metadata.originalName);
+}
+
 export async function listCarProfits(_req:Request,res:Response){
  const sales=await CarSale.find().populate("carId","vehicleId registrationNumber make model year purchasePrice").populate("buyerId","customerId name").sort({saleDate:-1});
  const summary=sales.reduce((a,s)=>({sales:a.sales+s.sellingPrice,investment:a.investment+s.totalInvestment,sellingExpenses:a.sellingExpenses+s.sellingExpenses,profit:a.profit+s.profit}),{sales:0,investment:0,sellingExpenses:0,profit:0});
