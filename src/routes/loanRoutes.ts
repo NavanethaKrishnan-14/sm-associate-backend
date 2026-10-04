@@ -1,7 +1,13 @@
 import { Router } from "express";
-import { createLoan,listLoans,updateLoan } from "../controllers/loanController";
+import { createFollowUp,createLoan,getLoan,listFollowUps,listLoans,updateFollowUp,updateLoan,updateLoanStatus } from "../controllers/loanController";
 const router=Router();
+router.get("/follow-ups",listFollowUps);
 router.get("/",listLoans);
 router.post("/",createLoan);
+router.get("/:id",getLoan);
 router.patch("/:id",updateLoan);
+router.patch("/:id/status",updateLoanStatus);
+router.get("/:id/follow-ups",listFollowUps);
+router.post("/:id/follow-ups",createFollowUp);
+router.patch("/:id/follow-ups/:followUpId",updateFollowUp);
 export default router;
