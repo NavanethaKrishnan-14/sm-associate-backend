@@ -30,16 +30,27 @@ export async function createUser(req:Request,res:Response){
 }
 
 export async function updateUser(req:Request,res:Response){
- const target=await User.findById(req.params.id);
+ const target=await User.findById(req.params.id).select("+passwordHash");
  if(!target)return res.status(404).json({success:false,message:"User not found."});
- const role=req.body.role==="ADMIN"||req.body.role==="STAFF"?req.body.role:target.role;
- const isActive=typeof req.body.isActive==="boolean"?req.body.isActive:target.isActive;
- if(String(target._id)===req.user?.id && (!isActive||role!=="ADMIN"))return res.status(400).json({success:false,message:"You cannot deactivate yourself or remove your own ADMIN role."});
- if(target.role==="ADMIN" && (role!=="ADMIN"||!isActive)){
+ const nextRole=req.body.role==="ADMIN"||req.body.role==="STAFF"?req.body.role:target.role;
+ const nextActive=typeof req.body.isActive==="boolean"?req.body.isActive:target.isActive;
+ const nextName=req.body.name!==undefined?String(req.body.name).trim():target.name;
+ const nextEmail=req.body.email!==undefined?String(req.body.email).trim().toLowerCase():target.email;
+ if(!nextName||!nextEmail)return res.status(400).json({success:false,message:"Name and email are required."});
+ if(String(target._id)===req.user?.id && (!nextActive||nextRole!=="ADMIN"))return res.status(400).json({success:false,message:"You cannot deactivate yourself or remove your own ADMIN role."});
+ if(target.role==="ADMIN" && (nextRole!=="ADMIN"||!nextActive)){
    const activeAdmins=await User.countDocuments({role:"ADMIN",isActive:true});
    if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
  }
- target.role=role; target.isActive=isActive; await target.save();
+ const duplicate=await User.findOne({_id:{$ne:target._id},email:nextEmail});
+ if(duplicate)return res.status(409).json({success:false,message:"A user with this email already exists."});
+ target.name=nextName;target.email=nextEmail;target.role=nextRole;target.isActive=nextActive;
+ if(req.body.password!==undefined){
+   const password=String(req.body.password);
+   if(password.length<8)return res.status(400).json({success:false,message:"Password must be at least 8 characters."});
+   target.passwordHash=await hashPassword(password);
+ }
+ await target.save();
  res.json({success:true,data:publicUser(target)});
 }
 
