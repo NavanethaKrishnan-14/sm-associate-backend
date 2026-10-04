@@ -23,14 +23,18 @@ export async function getCustomer(req:Request,res:Response){
  res.json({success:true,data:customer});
 }
 export async function updateCustomer(req:Request,res:Response){
- const allowed=["name","mobile","alternateMobile","email","address","city","occupation","notes"];
- if(req.user?.role==="ADMIN") allowed.push("pan","aadhaarLast4");
  const patch:any={};
- for(const key of allowed) if(req.body[key]!==undefined) patch[key]=req.body[key];
+ for(const key of ["name","mobile","alternateMobile","email","address","city","occupation","pan","aadhaarLast4","notes"]){
+  if(req.body[key]!==undefined)patch[key]=req.body[key];
+ }
+ if(patch.name!==undefined)patch.name=String(patch.name).trim();
+ if(patch.mobile!==undefined)patch.mobile=String(patch.mobile).trim();
+ if(!patch.name||!patch.mobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
  const customer=await Customer.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true});
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  res.json({success:true,data:customer});
 }
+
 export async function deleteCustomer(req:Request,res:Response){
  const customer=await Customer.findById(req.params.id);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
