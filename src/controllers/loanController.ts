@@ -60,11 +60,12 @@ export async function listFollowUps(req:Request,res:Response){
 export async function createFollowUp(req:Request,res:Response){
  const loan=await Loan.findById(req.params.id); if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  if(!req.body.note||!req.body.followUpDate)return res.status(400).json({success:false,message:"Follow-up date and note are required."});
- const followUp=await LoanFollowUp.create({...req.body,loanId:loan._id,createdBy:req.user?.id});
+ const followUp=await LoanFollowUp.create({followUpDate:new Date(req.body.followUpDate),note:String(req.body.note).trim(),status:"OPEN",loanId:loan._id,createdBy:req.user?.id});
  res.status(201).json({success:true,data:await followUp.populate("createdBy","name")});
 }
 export async function updateFollowUp(req:Request,res:Response){
  const followUp=await LoanFollowUp.findById(req.params.followUpId); if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
+ if(String(followUp.loanId)!==String(req.params.id))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
  const patch:any={}; for(const key of ["status","nextFollowUpDate"]) if(req.body[key]!==undefined)patch[key]=req.body[key];
  if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){
    if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});
