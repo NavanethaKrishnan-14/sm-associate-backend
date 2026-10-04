@@ -1,7 +1,10 @@
 import { Router } from "express";
-import { createCustomer,getCustomer,listCustomers } from "../controllers/customerController";
+import { createCustomer,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer } from "../controllers/customerController";
 const router=Router();
 router.get("/",listCustomers);
 router.post("/",createCustomer);
+router.get("/:id/history",getCustomerHistory);
 router.get("/:id",getCustomer);
+router.patch("/:id",updateCustomer);
+router.delete("/:id",deleteCustomer);
 export default router;
