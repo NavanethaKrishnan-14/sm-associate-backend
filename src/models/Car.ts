@@ -18,7 +18,34 @@ const carSchema=new Schema({
     carBook:{type:Boolean,default:false},
     carInsurance:{type:Boolean,default:false},
     agreement:{type:Boolean,default:false},
-    customDocuments:{type:[{type:String,trim:true,maxlength:100}],default:[]}
+    customDocuments:{type:[{type:String,trim:true,maxlength:100}],default:[]},
+    uploads:{
+      carBook:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      },
+      carInsurance:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      },
+      agreement:{
+        originalName:{type:String},
+        storedName:{type:String},
+        size:{type:Number},
+        uploadedAt:{type:Date}
+      }
+    },
+    customUploads:[{
+      name:{type:String,trim:true,maxlength:100},
+      originalName:{type:String},
+      storedName:{type:String},
+      size:{type:Number},
+      uploadedAt:{type:Date}
+    }]
   }
 },{timestamps:true});
 
