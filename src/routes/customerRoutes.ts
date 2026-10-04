@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { createCustomer,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer } from "../controllers/customerController";
+import { requireAdmin } from "../middleware/auth";
 const router=Router();
 router.get("/",listCustomers);
 router.post("/",createCustomer);
 router.get("/:id/history",getCustomerHistory);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
-router.delete("/:id",deleteCustomer);
+router.delete("/:id",requireAdmin,deleteCustomer);
 export default router;
