@@ -55,7 +55,7 @@ export async function updateLoanStatus(req:Request,res:Response){
  const patch:any={status};if(status==="APPROVED"&&req.body.approvedAmount!==undefined){if(req.user?.role!=="ADMIN")return res.status(403).json({success:false,message:"Only ADMIN can set an approved loan amount."});patch.approvedAmount=Number(req.body.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
  if(status==="DISBURSED")patch.disbursementDate=req.body.disbursementDate?new Date(req.body.disbursementDate):new Date();if(status==="REJECTED")patch.rejectionReason=req.body.rejectionReason||"";
  const loan=await prisma.loan.update({where:{id:String(req.params.id)},data:patch,include:{customer:{select:customerBrief}}}).catch(()=>null);if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- res.json({success:true,data:toLegacy(loan)});
+ res.json({success:true,data:toLegacy(renameRelations(loan as any,{customer:"customerId"}))});
 }
 export async function updateLoanDocuments(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:String(req.params.id)}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
@@ -63,7 +63,7 @@ export async function updateLoanDocuments(req:Request,res:Response){
  for(const key of ["idProof","addressProof","incomeProof","bankStatement"])if(!next[key]&&next.uploads?.[key]){await removeStored(next.uploads[key].storedName);delete next.uploads[key];}
  const set=new Set(names.map((x:string)=>x.toLowerCase())),old=next.customUploads;next.customUploads=old.filter((x:any)=>set.has(String(x.name).toLowerCase()));await Promise.all(old.filter((x:any)=>!set.has(String(x.name).toLowerCase())).map((x:any)=>removeStored(x.storedName)));
  const updated=await prisma.loan.update({where:{id:loan.id},data:{documents:next},include:{customer:{select:customerBrief},assignedTo:{select:assignedBrief}}});
- res.json({success:true,data:toLegacy(renameRelations(updated as any,{createdBy:"createdBy"}))});
+ res.json({success:true,data:toLegacy(renameRelations(updated as any,{customer:"customerId"}))});
 }
 export async function uploadLoanDocument(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:String(req.params.id)}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
@@ -83,7 +83,8 @@ export async function listFollowUps(req:Request,res:Response){
  const rows=await prisma.loanFollowUp.findMany({where,include:{loan:{include:{customer:{select:{id:true,customerId:true,name:true,mobile:true}}}},createdBy:{select:{id:true,name:true}}},orderBy:{followUpDate:"asc"}});
  const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),now.getDate()),tomorrow=new Date(start);tomorrow.setDate(tomorrow.getDate()+1),nextWeek=new Date(start);nextWeek.setDate(nextWeek.getDate()+7);
  const open=rows.filter(x=>x.status==="OPEN"),overdue=open.filter(x=>x.followUpDate<start),dueToday=open.filter(x=>x.followUpDate>=start&&x.followUpDate<tomorrow),upcoming=open.filter(x=>x.followUpDate>=tomorrow&&x.followUpDate<nextWeek);
- res.json({success:true,data:toLegacy(rows),summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
+ const compatRows=rows.map((row:any)=>renameRelations({...row,loan:row.loan?renameRelations(row.loan,{customer:"customerId"}):row.loan},{loan:"loanId"}));
+ res.json({success:true,data:toLegacy(compatRows),summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
 }
 export async function createFollowUp(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:String(req.params.id)}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});if(!req.body.note||!req.body.followUpDate)return res.status(400).json({success:false,message:"Follow-up date and note are required."});
