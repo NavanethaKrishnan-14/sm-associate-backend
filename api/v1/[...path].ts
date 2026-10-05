@@ -1,17 +1,8 @@
-import { connectDatabase } from "../../src/config/db";
-import { bootstrapAdmin } from "../../src/utils/bootstrapAdmin";
-
-let initialization: Promise<void> | null = null;
-
-async function initialize() {
-  await connectDatabase();
-  await bootstrapAdmin();
-}
-
 function requestPath(req: any) {
   const values = [req?.url, req?.originalUrl, req?.path]
     .filter(Boolean)
     .map(String);
+
   return values.find((value) => value.includes("/api/v1/")) ?? values[0] ?? "";
 }
 
@@ -19,11 +10,21 @@ function isPath(path: string, expected: string) {
   return path === expected || path.startsWith(expected + "?");
 }
 
+let initialization: Promise<void> | null = null;
+
+async function initialize() {
+  const { connectDatabase } = await import("../../src/config/db");
+  const { bootstrapAdmin } = await import("../../src/utils/bootstrapAdmin");
+
+  await connectDatabase();
+  await bootstrapAdmin();
+}
+
 export default async function handler(req: any, res: any) {
   const path = requestPath(req);
 
-  // Keep the basic health endpoint completely independent of application
-  // imports and MongoDB so Vercel can verify the function itself.
+  // This route intentionally has NO application imports or database access.
+  // It must remain available even if another backend module is broken.
   if (isPath(path, "/api/v1/health")) {
     return res.status(200).json({
       success: true,
@@ -32,11 +33,11 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // Database diagnostics intentionally remain separate from the basic
-  // health check and never expose credentials.
   if (isPath(path, "/api/v1/health/db")) {
     try {
+      const { connectDatabase } = await import("../../src/config/db");
       await connectDatabase();
+
       return res.status(200).json({
         success: true,
         database: "connected",
@@ -48,6 +49,7 @@ export default async function handler(req: any, res: any) {
       });
     } catch (error: any) {
       console.error("Database health check failed:", error);
+
       return res.status(503).json({
         success: false,
         database: "disconnected",
@@ -68,9 +70,6 @@ export default async function handler(req: any, res: any) {
 
     await initialization;
 
-    // Lazy-load Express only after the serverless function has passed
-    // initialization. This prevents unrelated application imports from
-    // crashing the basic health endpoint.
     const { default: app } = await import("../../src/app");
     return app(req, res);
   } catch (error: any) {
