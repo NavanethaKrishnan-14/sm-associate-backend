@@ -18,13 +18,13 @@ export async function listLoans(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined,customerId=req.query.customerId?String(req.query.customerId):undefined,search=req.query.search?String(req.query.search).trim():undefined;
  const where:any={};if(status)where.status=status;if(customerId)where.customerId=customerId;
  if(search){const customers=await prisma.customer.findMany({where:{OR:[{name:{contains:search,mode:"insensitive"}},{mobile:{contains:search,mode:"insensitive"}},{customerId:{contains:search,mode:"insensitive"}}]},select:{id:true}});where.OR=[{loanId:{contains:search,mode:"insensitive"}},{financeCompany:{contains:search,mode:"insensitive"}},{customerId:{in:customers.map(x=>x.id)}}];}
- const rows=await prisma.loan.findMany({where,include:{customer:{select:customerBrief},assignedTo:{select:assignedBrief}},orderBy:{createdAt:"desc"}});
+ const rows=await prisma.loan.findMany({where,include:{customer:{select:customerBrief}},orderBy:{createdAt:"desc"}});
  res.json({success:true,data:toLegacy(rows)});
 }
 export async function getLoan(req:Request,res:Response){
- const loan=await prisma.loan.findUnique({where:{id:req.params.id},include:{customer:{select:{...customerBrief,occupation:true}},assignedTo:{select:assignedBrief},followUps:{include:{createdBy:{select:{id:true,name:true}}},orderBy:[{followUpDate:"desc"},{createdAt:"desc"}]}}});
+ const loan=await prisma.loan.findUnique({where:{id:req.params.id},include:{customer:{select:{...customerBrief,occupation:true}},assignedTo:{select:assignedBrief}}});
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- res.json({success:true,data:toLegacy({loan,followUps:loan.followUps})});
+ const followUps=await prisma.loanFollowUp.findMany({where:{loanId:loan.id},include:{createdBy:{select:{id:true,name:true}}},orderBy:[{followUpDate:"desc"},{createdAt:"desc"}]});\n res.json({success:true,data:toLegacy({loan,followUps})});
 }
 export async function createLoan(req:Request,res:Response){
  const customer=await prisma.customer.findUnique({where:{id:String(req.body.customerId)}});if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
