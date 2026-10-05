@@ -20,12 +20,12 @@ export async function createCustomer(req:Request,res:Response){
  res.status(201).json({success:true,data:toLegacy(created)});
 }
 export async function getCustomer(req:Request,res:Response){
- const row=await prisma.customer.findUnique({where:{id:req.params.id}});
+ const row=await prisma.customer.findUnique({where:{id:String(req.params.id)}});
  if(!row)return res.status(404).json({success:false,message:"Customer not found."});
  res.json({success:true,data:toLegacy(row)});
 }
 export async function updateCustomer(req:Request,res:Response){
- const customer=await prisma.customer.findUnique({where:{id:req.params.id}});
+ const customer=await prisma.customer.findUnique({where:{id:String(req.params.id)}});
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const patch:any={};
  for(const key of ["name","mobile","alternateMobile","email","address","city","occupation","pan","aadhaarLast4","notes"])if(req.body[key]!==undefined)patch[key]=req.body[key];
@@ -37,7 +37,7 @@ export async function updateCustomer(req:Request,res:Response){
  res.json({success:true,data:toLegacy(updated)});
 }
 export async function deleteCustomer(req:Request,res:Response){
- const customer=await prisma.customer.findUnique({where:{id:req.params.id}});
+ const customer=await prisma.customer.findUnique({where:{id:String(req.params.id)}});
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const [loanCount,carCount,saleCount]=await Promise.all([
   prisma.loan.count({where:{customerId:customer.id}}),
@@ -49,7 +49,7 @@ export async function deleteCustomer(req:Request,res:Response){
  res.json({success:true,message:"Customer deleted successfully."});
 }
 export async function getCustomerHistory(req:Request,res:Response){
- const customer=await prisma.customer.findUnique({where:{id:req.params.id}});
+ const customer=await prisma.customer.findUnique({where:{id:String(req.params.id)}});
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const [loans,carsBought,carsSold]=await Promise.all([
   prisma.loan.findMany({where:{customerId:customer.id},include:{assignedTo:{select:{id:true,name:true,email:true,role:true}}},orderBy:{createdAt:"desc"}}),
