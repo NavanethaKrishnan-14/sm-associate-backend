@@ -9,7 +9,7 @@ router.post("/",createLoan);
 router.get("/:id",getLoan);
 router.patch("/:id",updateLoan);
 router.patch("/:id/documents",updateLoanDocuments);
-router.post("/:id/documents/:documentKey",loanDocumentUpload.single("file"),uploadLoanDocument);
+router.post("/:id/documents/:documentKey",requireAdmin,loanDocumentUpload.single("file"),uploadLoanDocument);
 router.get("/:id/documents/:documentKey/download",downloadLoanDocument);
 router.delete("/:id",requireAdmin,deleteLoan);
 router.patch("/:id/status",updateLoanStatus);
