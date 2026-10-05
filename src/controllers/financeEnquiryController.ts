@@ -29,6 +29,6 @@ if(patch.requiredAmount!==undefined){patch.requiredAmount=Number(patch.requiredA
 if(patch.status!==undefined&&!ENQUIRY_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid enquiry status."});
 if(patch.followUpDate!==undefined)patch.followUpDate=patch.followUpDate?new Date(patch.followUpDate):null;
 if(patch.assignedTo!==undefined){const id=String(patch.assignedTo||"");if(id&&!await prisma.user.findUnique({where:{id}}))return res.status(400).json({success:false,message:"Assigned user not found."});patch.assignedToId=id||null;delete patch.assignedTo;}
-const row=await prisma.financeEnquiry.update({where:{id:req.params.id},data:patch,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true}}).catch(()=>null);if(!row)return res.status(404).json({success:false,message:"Finance enquiry not found."});
+const row=await prisma.financeEnquiry.update({where:{id:String(req.params.id)},data:patch,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true}}).catch(()=>null);if(!row)return res.status(404).json({success:false,message:"Finance enquiry not found."});
 res.json({success:true,data:toLegacy(renameRelations(row as any,{customer:"customerId"}))});
 }
