@@ -1,7 +1,7 @@
 import { Request,Response } from "express";
 import { prisma } from "../config/db";
 import { nextId,newDatabaseId } from "../utils/sequence";
-import { toLegacy } from "../utils/legacy";
+import { toLegacy, renameRelations } from "../utils/legacy";
 export const ENQUIRY_STATUSES=["NEW","IN_PROGRESS","COMPLETED","CANCELLED"] as const;
 export const FINANCE_SERVICE_TYPES=["DSA_FINANCE","HOME_LOAN","CAR_LOAN","BUSINESS_LOAN","PERSONAL_LOAN","INSURANCE_RENEWAL","GOLD_RESALE"] as const;
 const customerSelect={id:true,customerId:true,name:true,mobile:true,email:true};
@@ -9,7 +9,7 @@ const userSelect={id:true,name:true,email:true,role:true};
 export async function listFinanceEnquiries(req:Request,res:Response){
 const where:any={};if(req.query.serviceCode)where.serviceCode=String(req.query.serviceCode);if(req.query.status)where.status=String(req.query.status);if(req.query.customerId)where.customerId=String(req.query.customerId);
 const rows=await prisma.financeEnquiry.findMany({where,include:{customer:{select:customerSelect},assignedTo:{select:userSelect}},orderBy:{createdAt:"desc"}});
-res.json({success:true,data:toLegacy(rows)});
+res.json({success:true,data:toLegacy(rows.map((row:any)=>renameRelations(row,{customer:"customerId"})))});
 }
 export async function createFinanceEnquiry(req:Request,res:Response){
 const customer=await prisma.customer.findUnique({where:{id:String(req.body.customerId)}});if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
@@ -19,7 +19,7 @@ const data:any={id:newDatabaseId(),enquiryId:await nextId("ENQ","financeEnquiry"
 if(req.body.requiredAmount!==undefined){data.requiredAmount=Number(req.body.requiredAmount);if(!Number.isFinite(data.requiredAmount)||data.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});}
 if(req.user?.role==="ADMIN"&&req.body.assignedTo!==undefined)data.assignedToId=String(req.body.assignedTo||"")||null;
 const enquiry=await prisma.financeEnquiry.create({data,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true}});
-res.status(201).json({success:true,data:toLegacy(enquiry)});
+res.status(201).json({success:true,data:toLegacy(renameRelations(enquiry as any,{customer:"customerId"}))});
 }
 export async function updateFinanceEnquiry(req:Request,res:Response){
 const allowed=req.user?.role==="ADMIN"?["serviceCode","financeCompany","requiredAmount","status","followUpDate","notes","assignedTo"]:["serviceCode","financeCompany","requiredAmount","followUpDate","notes"];const patch:any={};
@@ -30,5 +30,5 @@ if(patch.status!==undefined&&!ENQUIRY_STATUSES.includes(String(patch.status) as 
 if(patch.followUpDate!==undefined)patch.followUpDate=patch.followUpDate?new Date(patch.followUpDate):null;
 if(patch.assignedTo!==undefined){const id=String(patch.assignedTo||"");if(id&&!await prisma.user.findUnique({where:{id}}))return res.status(400).json({success:false,message:"Assigned user not found."});patch.assignedToId=id||null;delete patch.assignedTo;}
 const row=await prisma.financeEnquiry.update({where:{id:req.params.id},data:patch,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true}}).catch(()=>null);if(!row)return res.status(404).json({success:false,message:"Finance enquiry not found."});
-res.json({success:true,data:toLegacy(row)});
+res.json({success:true,data:toLegacy(renameRelations(row as any,{customer:"customerId"}))});
 }
