@@ -178,7 +178,7 @@ export async function createCar(req:Request,res:Response){
  }
  const car=await Car.create(data);
  const populated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
- res.status(201).json({success:true,data:{car:populated,seller}});
+ res.status(201).json({success:true,data:{...populated.toObject(),car:populated,seller}});
 }
 export async function listCarExpenses(req:Request,res:Response){
  const carId=req.query.carId?String(req.query.carId):undefined;
