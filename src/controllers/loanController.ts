@@ -81,7 +81,10 @@ export async function downloadLoanDocument(req:Request,res:Response){
 export async function listFollowUps(req:Request,res:Response){
  const where:any={};if(String(req.params.id))where.loanId=String(req.params.id);if(req.query.status)where.status=String(req.query.status);
  const rows=await prisma.loanFollowUp.findMany({where,include:{loan:{include:{customer:{select:{id:true,customerId:true,name:true,mobile:true}}}},createdBy:{select:{id:true,name:true}}},orderBy:{followUpDate:"asc"}});
- const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),now.getDate()),tomorrow=new Date(start);tomorrow.setDate(tomorrow.getDate()+1),nextWeek=new Date(start);nextWeek.setDate(nextWeek.getDate()+7);
+ const now=new Date();
+ const start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ const tomorrow=new Date(start); tomorrow.setDate(tomorrow.getDate()+1);
+ const nextWeek=new Date(start); nextWeek.setDate(nextWeek.getDate()+7);
  const open=rows.filter(x=>x.status==="OPEN"),overdue=open.filter(x=>x.followUpDate<start),dueToday=open.filter(x=>x.followUpDate>=start&&x.followUpDate<tomorrow),upcoming=open.filter(x=>x.followUpDate>=tomorrow&&x.followUpDate<nextWeek);
  const compatRows=rows.map((row:any)=>renameRelations({...row,loan:row.loan?renameRelations(row.loan,{customer:"customerId"}):row.loan},{loan:"loanId"}));
  res.json({success:true,data:toLegacy(compatRows),summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
