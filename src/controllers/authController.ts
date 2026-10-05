@@ -1,68 +1,60 @@
 import { Request, Response } from "express";
-import { User } from "../models/User";
+import { prisma } from "../config/db";
 import { comparePassword, hashPassword, signToken } from "../utils/auth";
+import { newDatabaseId } from "../utils/sequence";
+import { toLegacy } from "../utils/legacy";
 
-const publicUser=(user:any)=>({id:String(user._id),name:user.name,email:user.email,role:user.role,isActive:user.isActive});
+const publicUser=(user:any)=>({id:String(user.id),name:user.name,email:user.email,role:user.role,isActive:user.isActive});
 
 export async function login(req:Request,res:Response){
- const email=String(req.body.email??"").trim().toLowerCase(), password=String(req.body.password??"");
+ const email=String(req.body.email??"").trim().toLowerCase(),password=String(req.body.password??"");
  if(!email||!password)return res.status(400).json({success:false,message:"Email and password are required."});
- const user=await User.findOne({email}).select("+passwordHash");
+ const user=await prisma.user.findUnique({where:{email}});
  if(!user||!user.isActive||!(await comparePassword(password,user.passwordHash)))return res.status(401).json({success:false,message:"Invalid email or password."});
- const token=signToken({userId:String(user._id),role:user.role as "ADMIN"|"STAFF"});
+ const token=signToken({userId:user.id,role:user.role as "ADMIN"|"STAFF"});
  res.json({success:true,data:{token,user:publicUser(user)}});
 }
-
-export async function me(req:Request,res:Response){ res.json({success:true,data:req.user}); }
-
+export async function me(req:Request,res:Response){res.json({success:true,data:req.user});}
 export async function listUsers(_req:Request,res:Response){
- const users=await User.find().select("name email role isActive createdAt").sort({createdAt:-1});
+ const users=await prisma.user.findMany({orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,role:true,isActive:true}});
  res.json({success:true,data:users.map(publicUser)});
 }
-
 export async function createUser(req:Request,res:Response){
- const name=String(req.body.name??"").trim(), email=String(req.body.email??"").trim().toLowerCase(), password=String(req.body.password??"");
+ const name=String(req.body.name??"").trim(),email=String(req.body.email??"").trim().toLowerCase(),password=String(req.body.password??"");
  const role=req.body.role==="ADMIN"?"ADMIN":"STAFF";
  if(!name||!email||password.length<8)return res.status(400).json({success:false,message:"Name, valid email and a password of at least 8 characters are required."});
- if(await User.exists({email}))return res.status(409).json({success:false,message:"A user with this email already exists."});
- const user=await User.create({name,email,passwordHash:await hashPassword(password),role});
+ if(await prisma.user.findUnique({where:{email}}))return res.status(409).json({success:false,message:"A user with this email already exists."});
+ const user=await prisma.user.create({data:{id:newDatabaseId(),name,email,passwordHash:await hashPassword(password),role}});
  res.status(201).json({success:true,data:publicUser(user)});
 }
-
 export async function updateUser(req:Request,res:Response){
- const target=await User.findById(req.params.id).select("+passwordHash");
+ const target=await prisma.user.findUnique({where:{id:req.params.id}});
  if(!target)return res.status(404).json({success:false,message:"User not found."});
  const nextRole=req.body.role==="ADMIN"||req.body.role==="STAFF"?req.body.role:target.role;
  const nextActive=typeof req.body.isActive==="boolean"?req.body.isActive:target.isActive;
  const nextName=req.body.name!==undefined?String(req.body.name).trim():target.name;
  const nextEmail=req.body.email!==undefined?String(req.body.email).trim().toLowerCase():target.email;
  if(!nextName||!nextEmail)return res.status(400).json({success:false,message:"Name and email are required."});
- if(String(target._id)===req.user?.id && (!nextActive||nextRole!=="ADMIN"))return res.status(400).json({success:false,message:"You cannot deactivate yourself or remove your own ADMIN role."});
- if(target.role==="ADMIN" && (nextRole!=="ADMIN"||!nextActive)){
-   const activeAdmins=await User.countDocuments({role:"ADMIN",isActive:true});
-   if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
+ if(target.id===req.user?.id&&(!nextActive||nextRole!=="ADMIN"))return res.status(400).json({success:false,message:"You cannot deactivate yourself or remove your own ADMIN role."});
+ if(target.role==="ADMIN"&&(nextRole!=="ADMIN"||!nextActive)){
+  const activeAdmins=await prisma.user.count({where:{role:"ADMIN",isActive:true}});
+  if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
  }
- const duplicate=await User.findOne({_id:{$ne:target._id},email:nextEmail});
+ const duplicate=await prisma.user.findFirst({where:{email:nextEmail,NOT:{id:target.id}}});
  if(duplicate)return res.status(409).json({success:false,message:"A user with this email already exists."});
- target.name=nextName;target.email=nextEmail;target.role=nextRole;target.isActive=nextActive;
- if(req.body.password!==undefined){
-   const password=String(req.body.password);
-   if(password.length<8)return res.status(400).json({success:false,message:"Password must be at least 8 characters."});
-   target.passwordHash=await hashPassword(password);
- }
- await target.save();
- res.json({success:true,data:publicUser(target)});
+ const data:any={name:nextName,email:nextEmail,role:nextRole,isActive:nextActive};
+ if(req.body.password!==undefined){const password=String(req.body.password);if(password.length<8)return res.status(400).json({success:false,message:"Password must be at least 8 characters."});data.passwordHash=await hashPassword(password);}
+ const updated=await prisma.user.update({where:{id:target.id},data});
+ res.json({success:true,data:publicUser(updated)});
 }
-
-
 export async function deleteUser(req:Request,res:Response){
- const target=await User.findById(req.params.id);
+ const target=await prisma.user.findUnique({where:{id:req.params.id}});
  if(!target)return res.status(404).json({success:false,message:"User not found."});
- if(String(target._id)===req.user?.id)return res.status(400).json({success:false,message:"You cannot delete your own account."});
+ if(target.id===req.user?.id)return res.status(400).json({success:false,message:"You cannot delete your own account."});
  if(target.role==="ADMIN"&&target.isActive){
-   const activeAdmins=await User.countDocuments({role:"ADMIN",isActive:true});
-   if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
+  const activeAdmins=await prisma.user.count({where:{role:"ADMIN",isActive:true}});
+  if(activeAdmins<=1)return res.status(400).json({success:false,message:"At least one active ADMIN account must remain."});
  }
- await target.deleteOne();
+ await prisma.user.delete({where:{id:target.id}});
  res.json({success:true,message:"User deleted successfully."});
 }
