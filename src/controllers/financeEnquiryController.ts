@@ -8,7 +8,7 @@ const customerSelect={id:true,customerId:true,name:true,mobile:true,email:true};
 const userSelect={id:true,name:true,email:true,role:true};
 export async function listFinanceEnquiries(req:Request,res:Response){
 const where:any={};if(req.query.serviceCode)where.serviceCode=String(req.query.serviceCode);if(req.query.status)where.status=String(req.query.status);if(req.query.customerId)where.customerId=String(req.query.customerId);
-const rows=await prisma.financeEnquiry.findMany({where,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true},orderBy:{createdAt:"desc"}});
+const rows=await prisma.financeEnquiry.findMany({where,include:{customer:{select:customerSelect},assignedTo:{select:userSelect}},orderBy:{createdAt:"desc"}});
 res.json({success:true,data:toLegacy(rows)});
 }
 export async function createFinanceEnquiry(req:Request,res:Response){
