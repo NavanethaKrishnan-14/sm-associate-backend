@@ -143,7 +143,7 @@ export async function downloadSaleDocument(req:Request,res:Response){
 export async function listCarProfits(_req:Request,res:Response){
  const sales=await prisma.carSale.findMany({include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}},buyer:{select:{id:true,customerId:true,name:true}}},orderBy:{saleDate:"desc"}});
  const summary=sales.reduce((a,s)=>({sales:a.sales+s.sellingPrice,investment:a.investment+s.totalInvestment,sellingExpenses:a.sellingExpenses+s.sellingExpenses,profit:a.profit+s.profit}),{sales:0,investment:0,sellingExpenses:0,profit:0});
- res.json({success:true,data:toLegacy({summary,sales})});
+ res.json({success:true,data:toLegacy({summary,sales:sales.map((row:any)=>renameRelations(row,{car:"carId",buyer:"buyerId"}))})});
 }
 export async function deleteCar(req:Request,res:Response){
  const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});if(await prisma.carSale.findUnique({where:{carId:car.id}})||car.status==="SOLD")return res.status(409).json({success:false,message:"Sold vehicles cannot be deleted."});await prisma.car.delete({where:{id:car.id}});res.json({success:true,message:"Vehicle deleted successfully."});
