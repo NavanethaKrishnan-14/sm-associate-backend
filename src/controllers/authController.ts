@@ -28,7 +28,7 @@ export async function createUser(req:Request,res:Response){
  res.status(201).json({success:true,data:publicUser(user)});
 }
 export async function updateUser(req:Request,res:Response){
- const target=await prisma.user.findUnique({where:{id:req.params.id}});
+ const target=await prisma.user.findUnique({where:{id:String(req.params.id)}});
  if(!target)return res.status(404).json({success:false,message:"User not found."});
  const nextRole=req.body.role==="ADMIN"||req.body.role==="STAFF"?req.body.role:target.role;
  const nextActive=typeof req.body.isActive==="boolean"?req.body.isActive:target.isActive;
@@ -48,7 +48,7 @@ export async function updateUser(req:Request,res:Response){
  res.json({success:true,data:publicUser(updated)});
 }
 export async function deleteUser(req:Request,res:Response){
- const target=await prisma.user.findUnique({where:{id:req.params.id}});
+ const target=await prisma.user.findUnique({where:{id:String(req.params.id)}});
  if(!target)return res.status(404).json({success:false,message:"User not found."});
  if(target.id===req.user?.id)return res.status(400).json({success:false,message:"You cannot delete your own account."});
  if(target.role==="ADMIN"&&target.isActive){
