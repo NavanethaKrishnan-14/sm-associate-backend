@@ -1,7 +1,7 @@
 import { Request,Response } from "express";
 import { prisma } from "../config/db";
 import { nextId,newDatabaseId } from "../utils/sequence";
-import { toLegacy } from "../utils/legacy";
+import { toLegacy, renameRelations } from "../utils/legacy";
 
 const customerSelect={id:true,customerId:true,name:true,mobile:true,alternateMobile:true,email:true,address:true,city:true,occupation:true,pan:true,aadhaarLast4:true,notes:true,createdAt:true,updatedAt:true};
 
@@ -60,5 +60,5 @@ export async function getCustomerHistory(req:Request,res:Response){
  const loanApprovedAmount=loans.reduce((sum,l)=>sum+(l.approvedAmount||0),0);
  const carsBoughtValue=carsBought.reduce((sum,s)=>sum+s.sellingPrice,0);
  const carsSoldValue=carsSold.reduce((sum,c)=>sum+c.purchasePrice,0);
- res.json({success:true,data:toLegacy({customer,loans,carsBought,carsSold,summary:{loanCount:loans.length,loanCommission,loanApprovedAmount,carsBoughtCount:carsBought.length,carsBoughtValue,carsSoldCount:carsSold.length,carsSoldValue}})});
+ res.json({success:true,data:toLegacy({customer,loans:loans.map((row:any)=>renameRelations(row,{assignedTo:"assignedTo"})),carsBought:carsBought.map((row:any)=>renameRelations(row,{car:"carId"})),carsSold,summary:{loanCount:loans.length,loanCommission,loanApprovedAmount,carsBoughtCount:carsBought.length,carsBoughtValue,carsSoldCount:carsSold.length,carsSoldValue}})});
 }
