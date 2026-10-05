@@ -1,7 +1,5 @@
-import app from "../../src/app";
 import { connectDatabase } from "../../src/config/db";
 import { bootstrapAdmin } from "../../src/utils/bootstrapAdmin";
-import mongoose from "mongoose";
 
 let initialization: Promise<void> | null = null;
 
@@ -17,11 +15,16 @@ function requestPath(req: any) {
   return values.find((value) => value.includes("/api/v1/")) ?? values[0] ?? "";
 }
 
+function isPath(path: string, expected: string) {
+  return path === expected || path.startsWith(expected + "?");
+}
+
 export default async function handler(req: any, res: any) {
   const path = requestPath(req);
 
-  // Routing health check: never depends on MongoDB.
-  if (path === "/api/v1/health" || path.startsWith("/api/v1/health?")) {
+  // Keep the basic health endpoint completely independent of application
+  // imports and MongoDB so Vercel can verify the function itself.
+  if (isPath(path, "/api/v1/health")) {
     return res.status(200).json({
       success: true,
       message: "SM Associate API is running.",
@@ -29,8 +32,9 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // Deployment diagnostics without exposing secrets.
-  if (path === "/api/v1/health/db" || path.startsWith("/api/v1/health/db?")) {
+  // Database diagnostics intentionally remain separate from the basic
+  // health check and never expose credentials.
+  if (isPath(path, "/api/v1/health/db")) {
     try {
       await connectDatabase();
       return res.status(200).json({
@@ -38,7 +42,9 @@ export default async function handler(req: any, res: any) {
         database: "connected",
         mongodbConfigured: Boolean(process.env.MONGODB_URI),
         jwtConfigured: Boolean(process.env.JWT_SECRET),
-        adminConfigured: Boolean(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD)
+        adminConfigured: Boolean(
+          process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
+        )
       });
     } catch (error: any) {
       console.error("Database health check failed:", error);
@@ -47,15 +53,25 @@ export default async function handler(req: any, res: any) {
         database: "disconnected",
         mongodbConfigured: Boolean(process.env.MONGODB_URI),
         jwtConfigured: Boolean(process.env.JWT_SECRET),
-        adminConfigured: Boolean(process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD),
+        adminConfigured: Boolean(
+          process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
+        ),
         message: error?.message || "MongoDB connection failed."
       });
     }
   }
 
   try {
-    if (!initialization) initialization = initialize();
+    if (!initialization) {
+      initialization = initialize();
+    }
+
     await initialization;
+
+    // Lazy-load Express only after the serverless function has passed
+    // initialization. This prevents unrelated application imports from
+    // crashing the basic health endpoint.
+    const { default: app } = await import("../../src/app");
     return app(req, res);
   } catch (error: any) {
     console.error("Vercel API initialization failed:", error);
@@ -64,7 +80,7 @@ export default async function handler(req: any, res: any) {
     return res.status(503).json({
       success: false,
       message: error?.message || "Backend initialization failed.",
-      hint: "Check the Vercel Environment Variables and MongoDB Atlas network access."
+      hint: "Check Vercel environment variables and MongoDB Atlas network access."
     });
   }
 }
