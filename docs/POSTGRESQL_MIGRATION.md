@@ -21,7 +21,8 @@ Prisma uses string primary keys and a toLegacy() compatibility adapter so databa
 
 Required for PostgreSQL runtime:
 
-    DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+    DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST:5432/DATABASE?sslmode=require
+    DIRECT_URL=postgresql://USER:PASSWORD@DIRECT_HOST:5432/DATABASE?sslmode=require
     JWT_SECRET=...
     ADMIN_NAME=SM Associate Admin
     ADMIN_EMAIL=admin@smassociate.com
