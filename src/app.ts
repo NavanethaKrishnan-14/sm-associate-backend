@@ -11,6 +11,7 @@ import financeEnquiryRoutes from "./routes/financeEnquiryRoutes";
 import documentRoutes from "./routes/documentRoutes";
 import { requireAuth } from "./middleware/auth";
 import { setupSwagger } from "./config/swagger";
+import { prisma } from "./config/db";
 
 const app=express();
 app.use(cors({origin:process.env.CLIENT_URL?.split(",")??true}));
@@ -19,8 +20,11 @@ app.use(morgan("dev"));
 setupSwagger(app);
 
 app.get("/api/v1/health",(_req,res)=>res.json({success:true,message:"SM Associate API is running."}));
+app.get("/api/v1/health/db",async(_req,res)=>{
+ try{await prisma.$queryRaw`SELECT 1`;res.json({success:true,database:"connected"});}
+ catch(error){console.error("PostgreSQL health check failed:",error);res.status(503).json({success:false,database:"disconnected",message:"PostgreSQL connection failed."});}
+});
 app.use("/api/v1/auth",authRoutes);
-
 app.use(requireAuth);
 app.use("/api/v1/customers",customerRoutes);
 app.use("/api/v1/cars",carRoutes);
@@ -29,9 +33,5 @@ app.use("/api/v1/reports",reportRoutes);
 app.use("/api/v1/finance-services",financeServiceRoutes);
 app.use("/api/v1/finance-enquiries",financeEnquiryRoutes);
 app.use("/api/v1/documents",documentRoutes);
-
-app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
-  console.error(err);
-  res.status(500).json({success:false,message:"Internal server error."});
-});
+app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{console.error(err);res.status(500).json({success:false,message:"Internal server error."});});
 export default app;
