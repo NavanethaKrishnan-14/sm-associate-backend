@@ -1,10 +1,4 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "functions": {
-    "api/v1/[...path].ts": {
-      "runtime": "nodejs22.x",
-      "maxDuration": 60
-    }
-  }
+  "buildCommand": "npm run build"
 }
