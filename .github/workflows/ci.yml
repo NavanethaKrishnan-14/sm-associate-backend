@@ -25,6 +25,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sm_associate_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/sm_associate_test
       JWT_SECRET: ci-sm-associate-secret
       ADMIN_NAME: CI Admin
       ADMIN_EMAIL: ci-admin@smassociate.test
