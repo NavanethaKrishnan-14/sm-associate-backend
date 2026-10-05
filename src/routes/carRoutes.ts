@@ -12,7 +12,7 @@ router.patch("/:id",requireAdmin,updateCar);
 router.delete("/:id",requireAdmin,deleteCar);
 router.get("/:id/financials",requireAdmin,getCarFinancials);
 router.patch("/:id/documents",requireAdmin,updateCarDocuments);
-router.post("/:id/documents/:documentKey",carDocumentUpload.single("file"),uploadCarDocument);
+router.post("/:id/documents/:documentKey",requireAdmin,carDocumentUpload.single("file"),uploadCarDocument);
 router.post("/:id/sale/documents/:documentKey",requireAdmin,carDocumentUpload.single("file"),uploadSaleDocument);
 router.get("/:id/sale/documents/:documentKey/download",requireAdmin,downloadSaleDocument);
 router.get("/:id/documents/:documentKey/download",downloadCarDocument);
