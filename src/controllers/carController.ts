@@ -69,7 +69,7 @@ export async function updateCarDocuments(req:Request,res:Response){
  const oldUploads=next.customUploads;next.customUploads=oldUploads.filter((x:any)=>names.has(String(x.name).toLowerCase()));
  await Promise.all(oldUploads.filter((x:any)=>!names.has(String(x.name).toLowerCase())).map((x:any)=>removeStored(x.storedName)));
  const updated=await prisma.car.update({where:{id:car.id},data:{documents:next},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
- res.json({success:true,data:toLegacy(updated)});
+ res.json({success:true,data:toLegacy(renameRelations(updated as any,{seller:"sellerId"}))});
 }
 
 export async function uploadCarDocument(req:Request,res:Response){
@@ -112,7 +112,7 @@ export async function updateCarExpense(req:Request,res:Response){
  if(req.body.amount!==undefined){const amount=Number(req.body.amount);if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});data.amount=amount;}
  if(req.body.category!==undefined)data.category=String(req.body.category).trim();if(req.body.description!==undefined)data.description=String(req.body.description).trim();if(req.body.date!==undefined)data.date=new Date(req.body.date);
  const updated=await prisma.carExpense.update({where:{id:expense.id},data,include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}}}});
- res.json({success:true,data:toLegacy(updated)});
+ res.json({success:true,data:toLegacy(renameRelations(updated as any,{car:"carId"}))});
 }
 export async function getCarFinancials(req:Request,res:Response){
  const car=await prisma.car.findUnique({where:{id:String(req.params.id)},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},expenses:{orderBy:{date:"desc"}}}});
