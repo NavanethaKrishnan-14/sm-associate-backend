@@ -178,6 +178,7 @@ export async function createCar(req:Request,res:Response){
  }
  const car=await Car.create(data);
  const populated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
+ if(!populated)return res.status(500).json({success:false,message:"Vehicle was created but could not be loaded after creation."});
  res.status(201).json({success:true,data:{...populated.toObject(),car:populated,seller}});
 }
 export async function listCarExpenses(req:Request,res:Response){
