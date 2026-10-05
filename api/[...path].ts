@@ -1,6 +1,6 @@
-import app from "../../src/app";
-import { connectDatabase } from "../../src/config/db";
-import { bootstrapAdmin } from "../../src/utils/bootstrapAdmin";
+import app from "../src/app";
+import { connectDatabase } from "../src/config/db";
+import { bootstrapAdmin } from "../src/utils/bootstrapAdmin";
 
 let initialization: Promise<void> | null = null;
 
