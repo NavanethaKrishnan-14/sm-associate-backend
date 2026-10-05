@@ -110,7 +110,7 @@ model Car {
   status             CarStatus   @default(AVAILABLE)
   purchaseDate       DateTime    @default(now())
   notes              String?
-  documents          Json        @default("{}")
+  documents          Json        @default("{ \"carBook\": false, \"carInsurance\": false, \"agreement\": false, \"customDocuments\": [] }")
   expenses           CarExpense[]
   sale               CarSale?
   createdAt          DateTime    @default(now())
@@ -149,7 +149,7 @@ model CarSale {
   profit          Float
   saleDate        DateTime @default(now())
   notes           String?
-  documents       Json     @default("{}")
+  documents       Json     @default("{ \"idProof\": false, \"agreement\": false, \"customDocuments\": [] }")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -175,7 +175,7 @@ model Loan {
   notes                    String?
   assignedToId             String?
   assignedTo               User?          @relation("LoanAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  documents                Json           @default("{}")
+  documents                Json           @default("{ \"idProof\": false, \"addressProof\": false, \"incomeProof\": false, \"bankStatement\": false, \"customDocuments\": [] }")
   followUps                LoanFollowUp[]
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
