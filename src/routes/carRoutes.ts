@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { addCarExpense,createCar,deleteCar,deleteCarExpense,downloadCarDocument,downloadSaleDocument,getCarFinancials,listCarExpenses,listCarProfits,listCars,sellCar,updateCar,updateCarExpense,updateCarStatus,uploadCarDocument,updateCarDocuments,uploadSaleDocument } from "../controllers/carController";
+import { addCarExpense,createCar,deleteCar,deleteCarExpense,downloadCarDocument,downloadSaleDocument,getCarFinancials,getCar,listCarExpenses,listCarProfits,listCars,sellCar,updateCar,updateCarExpense,updateCarStatus,uploadCarDocument,updateCarDocuments,uploadSaleDocument } from "../controllers/carController";
 import { carDocumentUpload } from "../middleware/carDocumentUpload";
 import { requireAdmin } from "../middleware/auth";
 const router=Router();
 router.get("/",listCars);
 router.get("/expenses",requireAdmin,listCarExpenses);
 router.get("/profits",requireAdmin,listCarProfits);
+router.get("/:id",getCar);
 router.post("/",createCar);
 router.patch("/:id/status",requireAdmin,updateCarStatus);
 router.patch("/:id",requireAdmin,updateCar);
