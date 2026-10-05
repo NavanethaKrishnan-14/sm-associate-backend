@@ -10,6 +10,16 @@ async function initialize() {
 }
 
 export default async function handler(req: any, res: any) {
+  // Health must work even when MongoDB/environment initialization is unavailable.
+  // This lets Vercel confirm that routing is working independently of the database.
+  const requestUrl = String(req.url ?? "");
+  if (requestUrl === "/api/v1/health" || requestUrl.startsWith("/api/v1/health?")) {
+    return res.status(200).json({
+      success: true,
+      message: "SM Associate API is running."
+    });
+  }
+
   try {
     if (!initialization) initialization = initialize();
     await initialization;
