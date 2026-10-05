@@ -11,7 +11,7 @@ function cleanCustomNames(input:any){const raw=Array.isArray(input)?input.map((x
 function legacyDocs(value:any){return value&&typeof value==="object"?value:{};}
 
 export async function getCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:String(req.params.id)},}));
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  res.json({success:true,data:toLegacy(renameRelations(car as any,{seller:"sellerId"}))});
 }
