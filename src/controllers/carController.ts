@@ -57,7 +57,7 @@ export async function updateCar(req:Request,res:Response){
  for(const key of ["year","ownerNumber","km"])if(patch[key]!==undefined)patch[key]=Number(patch[key]);
  if(patch.purchasePrice!==undefined){patch.purchasePrice=Number(patch.purchasePrice);if(!Number.isFinite(patch.purchasePrice)||patch.purchasePrice<0)return res.status(400).json({success:false,message:"Purchase price must be a valid non-negative number."});}
  const updated=await prisma.car.update({where:{id:car.id},data:patch,include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
- res.json({success:true,data:toLegacy(updated)});
+ res.json({success:true,data:toLegacy(renameRelations(updated as any,{seller:"sellerId"}))});
 }
 
 export async function updateCarDocuments(req:Request,res:Response){
