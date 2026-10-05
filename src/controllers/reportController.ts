@@ -44,6 +44,5 @@ export async function operationalReport(_req:Request,res:Response){
  const status:any={},types:any={},finance:any={};for(const l of loans){status[l.status]=(status[l.status]||0)+1;types[l.loanType]=(types[l.loanType]||0)+1;const f=l.financeCompany||"Unassigned";finance[f]=(finance[f]||0)+(l.commission||0);}
  const salesProfit=sales.reduce((s,x)=>s+x.profit,0),expensesTotal=expenses.reduce((s,x)=>s+x.amount,0);
  const compatFollowUps=openFollowUps.map((row:any)=>renameRelations({...row,loan:row.loan?renameRelations(row.loan,{customer:"customerId"}):row.loan},{loan:"loanId"}));
- const compatSales=sales.map((row:any)=>renameRelations(row,{car:"carId",buyer:"buyerId"}));
  res.json({success:true,data:{customers,loanSummary:{count:loans.length,byStatus:status,byType:types,commissionByFinance:finance},openFollowUps:toLegacy(compatFollowUps),inventory,sales:{count:sales.length,profit:salesProfit},carExpenses:{count:expenses.length,total:expensesTotal}}});
 }
