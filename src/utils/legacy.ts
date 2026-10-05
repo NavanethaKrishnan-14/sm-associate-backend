@@ -16,3 +16,8 @@ export function newLegacyObjectId():string{
  for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
  return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
 }
+export function renameRelations<T extends Record<string, any>>(value:T,mappings:Record<string,string>):T{
+ const result={...value} as Record<string,any>;
+ for(const [from,to] of Object.entries(mappings)){if(Object.prototype.hasOwnProperty.call(result,from)){result[to]=result[from];delete result[from];}}
+ return result as T;
+}
