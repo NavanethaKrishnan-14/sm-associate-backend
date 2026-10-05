@@ -82,7 +82,7 @@ export async function uploadCarDocument(req:Request,res:Response){
  if(fixed.includes(key)){await removeStored(docs.uploads[key]?.storedName);docs[key]=true;docs.uploads[key]=meta;}
  else if(key==="custom"){docName=String(req.body.documentName||"").trim().slice(0,100);if(!docName){await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Document name is required for a custom document."});}if(!docs.customDocuments.some((x:string)=>x.toLowerCase()===docName!.toLowerCase()))docs.customDocuments.push(docName);const old=docs.customUploads.find((x:any)=>String(x.name).toLowerCase()===docName!.toLowerCase());await removeStored(old?.storedName);docs.customUploads=docs.customUploads.filter((x:any)=>String(x.name).toLowerCase()!==docName!.toLowerCase());docs.customUploads.push({name:docName,...meta});}
  else {await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Invalid document type."});}
- const updated=await prisma.car.update({where:{id:car.id},data:{documents:docs},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+ const updated=await prisma.car.update({where:{id:car.id},data:{documents:docs}});
  await prisma.document.create({data:{id:newDatabaseId(),sourceType:"Car Buying",recordId:car.id,name:docName||key,originalName:req.file.originalname,fileType:req.file.mimetype,fileSize:req.file.size,fileUrl:"/cars/"+car.id+"/documents/"+key+"/download",storageKey:req.file.filename}});
  res.status(201).json({success:true,message:"Document uploaded successfully.",data:toLegacy(renameRelations(updated as any,{seller:"sellerId"}))});
 }
