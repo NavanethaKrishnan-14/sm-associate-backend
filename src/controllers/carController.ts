@@ -10,6 +10,11 @@ async function removeStored(name?:string){if(!name)return;try{await fs.promises.
 function cleanCustomNames(input:any){const raw=Array.isArray(input)?input.map((x:any)=>String(x).trim().slice(0,100)).filter(Boolean):[];const seen=new Set<string>();return raw.filter((x:string)=>{const k=x.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});}
 function legacyDocs(value:any){return value&&typeof value==="object"?value:{};}
 
+export async function getCar(req:Request,res:Response){
+ const car=await prisma.car.findUnique({where:{id:req.params.id},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ res.json({success:true,data:toLegacy(renameRelations(car as any,{seller:"sellerId"}))});
+}
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined,search=String(req.query.search??"").trim();
  const where:any={};if(status)where.status=status;if(search)where.OR=[{registrationNumber:{contains:search,mode:"insensitive"}},{vehicleId:{contains:search,mode:"insensitive"}},{make:{contains:search,mode:"insensitive"}},{model:{contains:search,mode:"insensitive"}}];
