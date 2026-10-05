@@ -1,5 +1,5 @@
 const http=require("http");
-const app=require("../dist/app").default;
+const app=require("../dist/src/app").default;
 
 function request(serverPort,path,options={}){
  return new Promise((resolve,reject)=>{
