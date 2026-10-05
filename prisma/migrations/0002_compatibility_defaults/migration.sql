@@ -1,0 +1,3 @@
+ALTER TABLE "Car" ALTER COLUMN "documents" SET DEFAULT '{"carBook":false,"carInsurance":false,"agreement":false,"customDocuments":[]}'::jsonb;
+ALTER TABLE "CarSale" ALTER COLUMN "documents" SET DEFAULT '{"idProof":false,"agreement":false,"customDocuments":[]}'::jsonb;
+ALTER TABLE "Loan" ALTER COLUMN "documents" SET DEFAULT '{"idProof":false,"addressProof":false,"incomeProof":false,"bankStatement":false,"customDocuments":[]}'::jsonb;
