@@ -2,18 +2,42 @@ name: Backend CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main","migration/postgresql-prisma"]
   pull_request:
     branches: ["main"]
 
 jobs:
-  build:
+  build-and-smoke:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sm_associate_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sm_associate_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sm_associate_test
+      JWT_SECRET: ci-sm-associate-secret
+      ADMIN_NAME: CI Admin
+      ADMIN_EMAIL: ci-admin@smassociate.test
+      ADMIN_PASSWORD: ci-admin-password-2026
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm install
+      - run: npm run db:generate
+      - run: npm run db:migrate
+      - run: npm run db:seed
       - run: npm run build
       - run: npm run test:smoke
