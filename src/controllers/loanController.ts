@@ -24,7 +24,8 @@ export async function listLoans(req:Request,res:Response){
 export async function getLoan(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:req.params.id},include:{customer:{select:{...customerBrief,occupation:true}},assignedTo:{select:assignedBrief}}});
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- const followUps=await prisma.loanFollowUp.findMany({where:{loanId:loan.id},include:{createdBy:{select:{id:true,name:true}}},orderBy:[{followUpDate:"desc"},{createdAt:"desc"}]});\n res.json({success:true,data:toLegacy({loan,followUps})});
+ const followUps=await prisma.loanFollowUp.findMany({where:{loanId:loan.id},include:{createdBy:{select:{id:true,name:true}}},orderBy:[{followUpDate:"desc"},{createdAt:"desc"}]});
+ res.json({success:true,data:toLegacy({loan,followUps})});
 }
 export async function createLoan(req:Request,res:Response){
  const customer=await prisma.customer.findUnique({where:{id:String(req.body.customerId)}});if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
