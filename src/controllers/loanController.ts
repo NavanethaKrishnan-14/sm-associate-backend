@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "../config/db";
 import { nextId,newDatabaseId } from "../utils/sequence";
-import { toLegacy } from "../utils/legacy";
+import { toLegacy, renameRelations } from "../utils/legacy";
 
 export const LOAN_STATUSES=["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED","REJECTED","DISBURSED","CLOSED"] as const;
 function storedLoanDocumentPath(name:string){return path.resolve(process.cwd(),"uploads","loans",name);}
@@ -19,13 +19,13 @@ export async function listLoans(req:Request,res:Response){
  const where:any={};if(status)where.status=status;if(customerId)where.customerId=customerId;
  if(search){const customers=await prisma.customer.findMany({where:{OR:[{name:{contains:search,mode:"insensitive"}},{mobile:{contains:search,mode:"insensitive"}},{customerId:{contains:search,mode:"insensitive"}}]},select:{id:true}});where.OR=[{loanId:{contains:search,mode:"insensitive"}},{financeCompany:{contains:search,mode:"insensitive"}},{customerId:{in:customers.map(x=>x.id)}}];}
  const rows=await prisma.loan.findMany({where,include:{customer:{select:customerBrief}},orderBy:{createdAt:"desc"}});
- res.json({success:true,data:toLegacy(rows)});
+ res.json({success:true,data:toLegacy(rows.map((row:any)=>renameRelations(row,{customer:"customerId"})))});
 }
 export async function getLoan(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:req.params.id},include:{customer:{select:{...customerBrief,occupation:true}},assignedTo:{select:assignedBrief}}});
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  const followUps=await prisma.loanFollowUp.findMany({where:{loanId:loan.id},include:{createdBy:{select:{id:true,name:true}}},orderBy:[{followUpDate:"desc"},{createdAt:"desc"}]});
- res.json({success:true,data:toLegacy({loan,followUps})});
+ res.json({success:true,data:toLegacy({loan:renameRelations(loan as any,{customer:"customerId"}),followUps:followUps.map((row:any)=>renameRelations(row,{loan:"loanId"}))})});
 }
 export async function createLoan(req:Request,res:Response){
  const customer=await prisma.customer.findUnique({where:{id:String(req.body.customerId)}});if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
@@ -37,7 +37,7 @@ export async function createLoan(req:Request,res:Response){
  data.requiredAmount=Number(data.requiredAmount);if(data.approvedAmount!==undefined)data.approvedAmount=Number(data.approvedAmount);if(data.commission!==undefined)data.commission=Number(data.commission);
  if(data.applicationDate)data.applicationDate=new Date(data.applicationDate);if(data.expectedDisbursementDate)data.expectedDisbursementDate=new Date(data.expectedDisbursementDate);if(data.disbursementDate)data.disbursementDate=new Date(data.disbursementDate);
  const loan=await prisma.loan.create({data,include:{customer:{select:customerBrief}}});
- res.status(201).json({success:true,data:toLegacy(loan)});
+ res.status(201).json({success:true,data:toLegacy(renameRelations(loan as any,{customer:"customerId"}))});
 }
 export async function updateLoan(req:Request,res:Response){
  const current=await prisma.loan.findUnique({where:{id:req.params.id}});if(!current)return res.status(404).json({success:false,message:"Loan not found."});
@@ -48,7 +48,7 @@ export async function updateLoan(req:Request,res:Response){
  if(patch.status!==undefined&&!LOAN_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid loan status."});
  for(const key of ["applicationDate","expectedDisbursementDate","disbursementDate"])if(patch[key]!==undefined)patch[key]=patch[key]?new Date(patch[key]):null;
  const loan=await prisma.loan.update({where:{id:current.id},data:patch,include:{customer:{select:{...customerBrief,occupation:true}},assignedTo:{select:assignedBrief}}});
- res.json({success:true,data:toLegacy(loan)});
+ res.json({success:true,data:toLegacy(renameRelations(loan as any,{customer:"customerId"}))});
 }
 export async function updateLoanStatus(req:Request,res:Response){
  const raw=String(req.body.status||""),status=raw==="NEW"?"ENTERED":raw;if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
@@ -63,7 +63,7 @@ export async function updateLoanDocuments(req:Request,res:Response){
  for(const key of ["idProof","addressProof","incomeProof","bankStatement"])if(!next[key]&&next.uploads?.[key]){await removeStored(next.uploads[key].storedName);delete next.uploads[key];}
  const set=new Set(names.map((x:string)=>x.toLowerCase())),old=next.customUploads;next.customUploads=old.filter((x:any)=>set.has(String(x.name).toLowerCase()));await Promise.all(old.filter((x:any)=>!set.has(String(x.name).toLowerCase())).map((x:any)=>removeStored(x.storedName)));
  const updated=await prisma.loan.update({where:{id:loan.id},data:{documents:next},include:{customer:{select:customerBrief},assignedTo:{select:assignedBrief}}});
- res.json({success:true,data:toLegacy(updated)});
+ res.json({success:true,data:toLegacy(renameRelations(updated as any,{createdBy:"createdBy"}))});
 }
 export async function uploadLoanDocument(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:req.params.id}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
@@ -73,7 +73,7 @@ export async function uploadLoanDocument(req:Request,res:Response){
  else{await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Invalid document type."});}
  const updated=await prisma.loan.update({where:{id:loan.id},data:{documents:next},include:{customer:{select:customerBrief},assignedTo:{select:assignedBrief}}});
  await prisma.document.create({data:{id:newDatabaseId(),sourceType:"Loan",recordId:loan.id,name:name||key,originalName:req.file.originalname,fileType:req.file.mimetype,fileSize:req.file.size,fileUrl:"/loans/"+loan.id+"/documents/"+key+"/download",storageKey:req.file.filename}});
- res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:toLegacy(updated)});
+ res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:toLegacy(renameRelations(updated as any,{customer:"customerId"}))});
 }
 export async function downloadLoanDocument(req:Request,res:Response){
  const loan=await prisma.loan.findUnique({where:{id:req.params.id}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});const d:any=docs(loan.documents),key=String(req.params.documentKey||"");let meta:any;if(["idProof","addressProof","incomeProof","bankStatement"].includes(key))meta=d.uploads?.[key];else if(key==="custom"){const n=String(req.query.documentName||"").trim();meta=(d.customUploads||[]).find((x:any)=>String(x.name).toLowerCase()===n.toLowerCase());}if(!meta?.storedName)return res.status(404).json({success:false,message:"Uploaded loan document not found."});const p=storedLoanDocumentPath(meta.storedName);if(!fs.existsSync(p))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});res.download(p,meta.originalName);
@@ -93,8 +93,8 @@ export async function createFollowUp(req:Request,res:Response){
 export async function updateFollowUp(req:Request,res:Response){
  const row=await prisma.loanFollowUp.findUnique({where:{id:req.params.followUpId}});if(!row)return res.status(404).json({success:false,message:"Follow-up not found."});if(row.loanId!==req.params.id)return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
  const patch:any={};for(const key of ["status","nextFollowUpDate"])if(req.body[key]!==undefined)patch[key]=req.body[key];if(patch.nextFollowUpDate)patch.nextFollowUpDate=new Date(patch.nextFollowUpDate);
- if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});const result=await prisma.$transaction(async tx=>{const updated=await tx.loanFollowUp.update({where:{id:row.id},data:patch,include:{createdBy:{select:{id:true,name:true}}}});const next=await tx.loanFollowUp.create({data:{id:newDatabaseId(),loanId:row.loanId,followUpDate:new Date(req.body.nextFollowUpDate),note:String(req.body.nextNote).trim(),status:"OPEN",createdById:req.user?.id},include:{createdBy:{select:{id:true,name:true}}}});return {updated,next};});return res.json({success:true,data:toLegacy(result.updated),nextFollowUp:toLegacy(result.next)});}
- const updated=await prisma.loanFollowUp.update({where:{id:row.id},data:patch,include:{createdBy:{select:{id:true,name:true}}}});res.json({success:true,data:toLegacy(updated)});
+ if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});const result=await prisma.$transaction(async tx=>{const updated=await tx.loanFollowUp.update({where:{id:row.id},data:patch,include:{createdBy:{select:{id:true,name:true}}}});const next=await tx.loanFollowUp.create({data:{id:newDatabaseId(),loanId:row.loanId,followUpDate:new Date(req.body.nextFollowUpDate),note:String(req.body.nextNote).trim(),status:"OPEN",createdById:req.user?.id},include:{createdBy:{select:{id:true,name:true}}}});return {updated,next};});return res.json({success:true,data:toLegacy(renameRelations(result.updated as any,{createdBy:"createdBy"})),nextFollowUp:toLegacy(renameRelations(result.next as any,{createdBy:"createdBy"}))});}
+ const updated=await prisma.loanFollowUp.update({where:{id:row.id},data:patch,include:{createdBy:{select:{id:true,name:true}}}});res.json({success:true,data:toLegacy(renameRelations(updated as any,{createdBy:"createdBy"}))});
 }
 export async function deleteLoan(req:Request,res:Response){const loan=await prisma.loan.findUnique({where:{id:req.params.id}});if(!loan)return res.status(404).json({success:false,message:"Loan not found."});await prisma.loan.delete({where:{id:loan.id}});res.json({success:true,message:"Loan deleted successfully."});}
 export async function deleteFollowUp(req:Request,res:Response){const row=await prisma.loanFollowUp.findUnique({where:{id:req.params.followUpId}});if(!row)return res.status(404).json({success:false,message:"Follow-up not found."});if(row.loanId!==req.params.id)return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});await prisma.loanFollowUp.delete({where:{id:row.id}});res.json({success:true,message:"Follow-up deleted successfully."});}
