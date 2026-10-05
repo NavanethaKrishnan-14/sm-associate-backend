@@ -11,7 +11,7 @@ function cleanCustomNames(input:any){const raw=Array.isArray(input)?input.map((x
 function legacyDocs(value:any){return value&&typeof value==="object"?value:{};}
 
 export async function getCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  res.json({success:true,data:toLegacy(renameRelations(car as any,{seller:"sellerId"}))});
 }
@@ -48,7 +48,7 @@ export async function createCar(req:Request,res:Response){
 export async function updateCarStatus(req:Request,res:Response){req.body={status:req.body.status};return updateCar(req,res);}
 
 export async function updateCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const patch:any={};
  for(const key of ["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes","status"])if(req.body[key]!==undefined)patch[key]=req.body[key];
@@ -61,7 +61,7 @@ export async function updateCar(req:Request,res:Response){
 }
 
 export async function updateCarDocuments(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const current:any=legacyDocs(car.documents),next:any={carBook:Boolean(req.body?.carBook),carInsurance:Boolean(req.body?.carInsurance),agreement:Boolean(req.body?.agreement),customDocuments:cleanCustomNames(req.body?.customDocuments),uploads:current.uploads||{},customUploads:Array.isArray(current.customUploads)?current.customUploads:[]};
  for(const key of ["carBook","carInsurance","agreement"])if(!next[key]&&next.uploads?.[key]){await removeStored(next.uploads[key].storedName);delete next.uploads[key];}
@@ -73,10 +73,10 @@ export async function updateCarDocuments(req:Request,res:Response){
 }
 
 export async function uploadCarDocument(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
- const key=String(req.params.documentKey||""),fixed=["carBook","carInsurance","agreement"],current:any=legacyDocs(car.documents),docs:any={...current,uploads:{...(current.uploads||{})},customUploads:Array.isArray(current.customUploads)?current.customUploads:[],customDocuments:Array.isArray(current.customDocuments)?current.customDocuments:[]};
+ const key=String(String(req.params.documentKey)||""),fixed=["carBook","carInsurance","agreement"],current:any=legacyDocs(car.documents),docs:any={...current,uploads:{...(current.uploads||{})},customUploads:Array.isArray(current.customUploads)?current.customUploads:[],customDocuments:Array.isArray(current.customDocuments)?current.customDocuments:[]};
  const meta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date().toISOString()};
  let docName:string|undefined;
  if(fixed.includes(key)){await removeStored(docs.uploads[key]?.storedName);docs[key]=true;docs.uploads[key]=meta;}
@@ -88,8 +88,8 @@ export async function uploadCarDocument(req:Request,res:Response){
 }
 
 export async function downloadCarDocument(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
- const d:any=legacyDocs(car.documents),key=String(req.params.documentKey||"");let meta:any;
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const d:any=legacyDocs(car.documents),key=String(String(req.params.documentKey)||"");let meta:any;
  if(["carBook","carInsurance","agreement"].includes(key))meta=d.uploads?.[key];else if(key==="custom"){const n=String(req.query.documentName||"").trim();meta=(d.customUploads||[]).find((x:any)=>String(x.name).toLowerCase()===n.toLowerCase());}
  if(!meta?.storedName)return res.status(404).json({success:false,message:"Uploaded document not found."});
  const filePath=storedCarDocumentPath(meta.storedName);if(!fs.existsSync(filePath))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});res.download(filePath,meta.originalName);
@@ -101,13 +101,13 @@ export async function listCarExpenses(req:Request,res:Response){
  res.json({success:true,data:toLegacy(rows.map((row:any)=>renameRelations(row,{car:"carId"})))});
 }
 export async function addCarExpense(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const amount=Number(req.body.amount);if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid positive number."});
  const data:any={id:newDatabaseId(),carId:car.id,amount,category:String(req.body.category||"").trim()};if(req.body.description!==undefined)data.description=String(req.body.description).trim();if(req.body.date!==undefined)data.date=new Date(req.body.date);
  const expense=await prisma.carExpense.create({data});res.status(201).json({success:true,data:toLegacy(expense)});
 }
 export async function updateCarExpense(req:Request,res:Response){
- const expense=await prisma.carExpense.findUnique({where:{id:req.params.expenseId}});if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
+ const expense=await prisma.carExpense.findUnique({where:{id:String(req.params.expenseId)}});if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
  const data:any={};if(req.body.carId!==undefined){const car=await prisma.car.findUnique({where:{id:String(req.body.carId)}});if(!car)return res.status(400).json({success:false,message:"Vehicle not found."});data.carId=car.id;}
  if(req.body.amount!==undefined){const amount=Number(req.body.amount);if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});data.amount=amount;}
  if(req.body.category!==undefined)data.category=String(req.body.category).trim();if(req.body.description!==undefined)data.description=String(req.body.description).trim();if(req.body.date!==undefined)data.date=new Date(req.body.date);
@@ -115,14 +115,14 @@ export async function updateCarExpense(req:Request,res:Response){
  res.json({success:true,data:toLegacy(updated)});
 }
 export async function getCarFinancials(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},expenses:{orderBy:{date:"desc"}}}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},expenses:{orderBy:{date:"desc"}}}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const expenseTotal=car.expenses.reduce((s,e)=>s+e.amount,0),totalInvestment=car.purchasePrice+expenseTotal;
  const sale=await prisma.carSale.findUnique({where:{carId:car.id},include:{buyer:{select:{id:true,customerId:true,name:true,mobile:true}}}});
  res.json({success:true,data:toLegacy({car:renameRelations(car as any,{seller:"sellerId"}),expenses:car.expenses,expenseTotal,totalInvestment,sale: sale?renameRelations(sale as any,{buyer:"buyerId"}):sale,netProfit:sale?sale.profit:null})});
 }
 export async function sellCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(car.status==="SOLD")return res.status(409).json({success:false,message:"Car is already sold."});
  const buyer=await prisma.customer.findUnique({where:{id:String(req.body.buyerId)}});if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
  if(await prisma.carSale.findUnique({where:{carId:car.id}}))return res.status(409).json({success:false,message:"Sale already exists for this car."});
@@ -133,17 +133,17 @@ export async function sellCar(req:Request,res:Response){
  res.status(201).json({success:true,data:toLegacy(result)});
 }
 export async function uploadSaleDocument(req:Request,res:Response){
- const sale=await prisma.carSale.findUnique({where:{carId:req.params.id}});if(!sale)return res.status(404).json({success:false,message:"Sale not found. Complete the vehicle sale first."});if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
- const key=String(req.params.documentKey||""),fixed=["idProof","agreement"],current:any=legacyDocs(sale.documents),docs:any={...current,uploads:{...(current.uploads||{})},customUploads:Array.isArray(current.customUploads)?current.customUploads:[],customDocuments:Array.isArray(current.customDocuments)?current.customDocuments:[]},meta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date().toISOString()};let docName:string|undefined;
+ const sale=await prisma.carSale.findUnique({where:{carId:String(req.params.id)}});if(!sale)return res.status(404).json({success:false,message:"Sale not found. Complete the vehicle sale first."});if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(String(req.params.documentKey)||""),fixed=["idProof","agreement"],current:any=legacyDocs(sale.documents),docs:any={...current,uploads:{...(current.uploads||{})},customUploads:Array.isArray(current.customUploads)?current.customUploads:[],customDocuments:Array.isArray(current.customDocuments)?current.customDocuments:[]},meta={originalName:req.file.originalname,storedName:req.file.filename,size:req.file.size,uploadedAt:new Date().toISOString()};let docName:string|undefined;
  if(fixed.includes(key)){await removeStored(docs.uploads[key]?.storedName);docs[key]=true;docs.uploads[key]=meta;}
  else if(key==="custom"){docName=String(req.body.documentName||"").trim().slice(0,100);if(!docName){await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Document name is required for a custom document."});}if(!docs.customDocuments.some((x:string)=>x.toLowerCase()===docName!.toLowerCase())){await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});}const old=docs.customUploads.find((x:any)=>String(x.name).toLowerCase()===docName!.toLowerCase());await removeStored(old?.storedName);docs.customUploads=docs.customUploads.filter((x:any)=>String(x.name).toLowerCase()!==docName!.toLowerCase());docs.customUploads.push({name:docName,...meta});}
  else{await removeStored(req.file.filename);return res.status(400).json({success:false,message:"Invalid sale document type."});}
  const updated=await prisma.carSale.update({where:{id:sale.id},data:{documents:docs},include:{buyer:{select:{id:true,customerId:true,name:true,mobile:true}}}});
- await prisma.document.create({data:{id:newDatabaseId(),sourceType:"Car Sold",recordId:sale.id,name:docName||key,originalName:req.file.originalname,fileType:req.file.mimetype,fileSize:req.file.size,fileUrl:"/cars/"+req.params.id+"/sale/documents/"+key+"/download",storageKey:req.file.filename}});
+ await prisma.document.create({data:{id:newDatabaseId(),sourceType:"Car Sold",recordId:sale.id,name:docName||key,originalName:req.file.originalname,fileType:req.file.mimetype,fileSize:req.file.size,fileUrl:"/cars/"+String(req.params.id)+"/sale/documents/"+key+"/download",storageKey:req.file.filename}});
  res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:toLegacy(renameRelations(updated as any,{buyer:"buyerId"}))});
 }
 export async function downloadSaleDocument(req:Request,res:Response){
- const sale=await prisma.carSale.findUnique({where:{carId:req.params.id}});if(!sale)return res.status(404).json({success:false,message:"Sale not found."});const d:any=legacyDocs(sale.documents),key=String(req.params.documentKey||"");let meta:any;if(["idProof","agreement"].includes(key))meta=d.uploads?.[key];else if(key==="custom"){const n=String(req.query.documentName||"").trim();meta=(d.customUploads||[]).find((x:any)=>String(x.name).toLowerCase()===n.toLowerCase());}if(!meta?.storedName)return res.status(404).json({success:false,message:"Uploaded buyer document not found."});const p=storedCarDocumentPath(meta.storedName);if(!fs.existsSync(p))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});res.download(p,meta.originalName);
+ const sale=await prisma.carSale.findUnique({where:{carId:String(req.params.id)}});if(!sale)return res.status(404).json({success:false,message:"Sale not found."});const d:any=legacyDocs(sale.documents),key=String(String(req.params.documentKey)||"");let meta:any;if(["idProof","agreement"].includes(key))meta=d.uploads?.[key];else if(key==="custom"){const n=String(req.query.documentName||"").trim();meta=(d.customUploads||[]).find((x:any)=>String(x.name).toLowerCase()===n.toLowerCase());}if(!meta?.storedName)return res.status(404).json({success:false,message:"Uploaded buyer document not found."});const p=storedCarDocumentPath(meta.storedName);if(!fs.existsSync(p))return res.status(404).json({success:false,message:"Document file is no longer available on the server."});res.download(p,meta.originalName);
 }
 export async function listCarProfits(_req:Request,res:Response){
  const sales=await prisma.carSale.findMany({include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}},buyer:{select:{id:true,customerId:true,name:true}}},orderBy:{saleDate:"desc"}});
@@ -151,8 +151,8 @@ export async function listCarProfits(_req:Request,res:Response){
  res.json({success:true,data:toLegacy({summary,sales:sales.map((row:any)=>renameRelations(row,{car:"carId",buyer:"buyerId"}))})});
 }
 export async function deleteCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});if(await prisma.carSale.findUnique({where:{carId:car.id}})||car.status==="SOLD")return res.status(409).json({success:false,message:"Sold vehicles cannot be deleted."});await prisma.car.delete({where:{id:car.id}});res.json({success:true,message:"Vehicle deleted successfully."});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)}});if(!car)return res.status(404).json({success:false,message:"Car not found."});if(await prisma.carSale.findUnique({where:{carId:car.id}})||car.status==="SOLD")return res.status(409).json({success:false,message:"Sold vehicles cannot be deleted."});await prisma.car.delete({where:{id:car.id}});res.json({success:true,message:"Vehicle deleted successfully."});
 }
 export async function deleteCarExpense(req:Request,res:Response){
- const expense=await prisma.carExpense.findUnique({where:{id:req.params.expenseId}});if(!expense)return res.status(404).json({success:false,message:"Expense not found."});if(expense.carId!==req.params.id)return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});await prisma.carExpense.delete({where:{id:expense.id}});res.json({success:true,message:"Expense deleted successfully."});
+ const expense=await prisma.carExpense.findUnique({where:{id:String(req.params.expenseId)}});if(!expense)return res.status(404).json({success:false,message:"Expense not found."});if(expense.carId!==String(req.params.id))return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});await prisma.carExpense.delete({where:{id:expense.id}});res.json({success:true,message:"Expense deleted successfully."});
 }
