@@ -1,29 +1,21 @@
-import mongoose from "mongoose";
+import { PrismaClient } from "@prisma/client";
 
-let connectionPromise: Promise<typeof mongoose> | null = null;
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"]
+  });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export async function connectDatabase(): Promise<void> {
-  const uri = process.env.MONGODB_URI?.trim();
+  if (!process.env.DATABASE_URL?.trim()) throw new Error("DATABASE_URL is not configured in the Vercel environment.");
+  await prisma.$queryRaw`SELECT 1`;
+  console.log("PostgreSQL connected");
+}
 
-  if (!uri) {
-    throw new Error("MONGODB_URI is not configured in the Vercel environment.");
-  }
-
-  if (mongoose.connection.readyState === 1) {
-    return;
-  }
-
-  if (!connectionPromise) {
-    connectionPromise = mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 10000,
-      maxPoolSize: 10,
-      bufferCommands: false
-    }).catch((error) => {
-      connectionPromise = null;
-      throw error;
-    });
-  }
-
-  await connectionPromise;
-  console.log("MongoDB connected");
+export async function disconnectDatabase(): Promise<void> {
+  await prisma.$disconnect();
 }
