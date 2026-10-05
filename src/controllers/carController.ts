@@ -13,7 +13,7 @@ function legacyDocs(value:any){return value&&typeof value==="object"?value:{};}
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined,search=String(req.query.search??"").trim();
  const where:any={};if(status)where.status=status;if(search)where.OR=[{registrationNumber:{contains:search,mode:"insensitive"}},{vehicleId:{contains:search,mode:"insensitive"}},{make:{contains:search,mode:"insensitive"}},{model:{contains:search,mode:"insensitive"}}];
- const cars=await prisma.car.findMany({where,include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},sale:true},orderBy:{createdAt:"desc"}});
+ const cars=await prisma.car.findMany({where,include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}}},orderBy:{createdAt:"desc"}});
  const ids=cars.map(c=>c.id);
  const grouped=ids.length?await prisma.carExpense.groupBy({by:["carId"],where:{carId:{in:ids}},_sum:{amount:true}}):[];
  const map=new Map(grouped.map(x=>[x.carId,Number(x._sum.amount||0)]));
@@ -109,10 +109,10 @@ export async function updateCarExpense(req:Request,res:Response){
  res.json({success:true,data:toLegacy(updated)});
 }
 export async function getCarFinancials(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:req.params.id},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},sale:{include:{buyer:{select:{id:true,customerId:true,name:true,mobile:true}}}},expenses:{orderBy:{date:"desc"}}}});
+ const car=await prisma.car.findUnique({where:{id:req.params.id},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true}},expenses:{orderBy:{date:"desc"}}}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const expenseTotal=car.expenses.reduce((s,e)=>s+e.amount,0),totalInvestment=car.purchasePrice+expenseTotal;
- res.json({success:true,data:toLegacy({car,expenses:car.expenses,expenseTotal,totalInvestment,sale:car.sale,netProfit:car.sale?car.sale.profit:null})});
+ const sale=await prisma.carSale.findUnique({where:{carId:car.id},include:{buyer:{select:{id:true,customerId:true,name:true,mobile:true}}}});\n res.json({success:true,data:toLegacy({car,expenses:car.expenses,expenseTotal,totalInvestment,sale,netProfit:sale?sale.profit:null})});
 }
 export async function sellCar(req:Request,res:Response){
  const car=await prisma.car.findUnique({where:{id:req.params.id}});if(!car)return res.status(404).json({success:false,message:"Car not found."});
