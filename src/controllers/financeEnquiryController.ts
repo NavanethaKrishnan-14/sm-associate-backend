@@ -18,7 +18,7 @@ const service=await prisma.financeService.findFirst({where:{code:serviceCode,act
 const data:any={id:newDatabaseId(),enquiryId:await nextId("ENQ","financeEnquiry"),customerId:customer.id,serviceCode};for(const key of ["financeCompany","notes"])if(req.body[key]!==undefined)data[key]=req.body[key];if(req.body.followUpDate!==undefined)data.followUpDate=new Date(req.body.followUpDate);
 if(req.body.requiredAmount!==undefined){data.requiredAmount=Number(req.body.requiredAmount);if(!Number.isFinite(data.requiredAmount)||data.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});}
 if(req.user?.role==="ADMIN"&&req.body.assignedTo!==undefined)data.assignedToId=String(req.body.assignedTo||"")||null;
-const enquiry=await prisma.financeEnquiry.create({data,include:{customer:{select:customerSelect},assignedTo:{select:userSelect},service:true}});
+const enquiry=await prisma.financeEnquiry.create({data,include:{customer:{select:customerSelect},assignedTo:{select:userSelect}}});
 res.status(201).json({success:true,data:toLegacy(renameRelations(enquiry as any,{customer:"customerId"}))});
 }
 export async function updateFinanceEnquiry(req:Request,res:Response){
