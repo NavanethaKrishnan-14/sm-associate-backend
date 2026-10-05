@@ -33,6 +33,7 @@ function assert(ok,message){if(!ok)throw new Error(message);}
    r=await request(port,"/api/v1/customers/"+customer._id,{method:"PATCH",headers:auth,body:{city:"Tirunelveli"}});assert(r.status===200,"Customer update failed");
    r=await request(port,"/api/v1/cars",{method:"POST",headers:auth,body:{sellerId:customer._id,registrationNumber:"TN-SM-"+stamp,make:"Smoke",model:"Test",year:2026,purchasePrice:100000}});assert(r.status===201,"Vehicle creation failed");
    const car=r.json.data;
+   r=await request(port,"/api/v1/cars/"+car._id,{headers:auth});assert(r.status===200&&r.json?.data?._id===car._id,"Vehicle detail failed");
    r=await request(port,"/api/v1/cars/"+car._id+"/expenses",{method:"POST",headers:auth,body:{category:"Testing",amount:1000,description:"Smoke test"}});assert(r.status===201,"Vehicle expense creation failed");
    r=await request(port,"/api/v1/cars/"+car._id+"/sell",{method:"POST",headers:auth,body:{buyerId:customer._id,sellingPrice:110000,sellingExpenses:500}});assert(r.status===201,"Vehicle sale failed");
    r=await request(port,"/api/v1/loans",{method:"POST",headers:auth,body:{customerId:customer._id,loanType:"Smoke Loan",requiredAmount:250000}});assert(r.status===201,"Loan creation failed");
