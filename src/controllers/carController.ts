@@ -11,7 +11,7 @@ function cleanCustomNames(input:any){const raw=Array.isArray(input)?input.map((x
 function legacyDocs(value:any){return value&&typeof value==="object"?value:{};}
 
 export async function getCar(req:Request,res:Response){
- const car=await prisma.car.findUnique({where:{id:String(req.params.id)},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+ const car=await prisma.car.findUnique({where:{id:String(req.params.id)},}));
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  res.json({success:true,data:toLegacy(renameRelations(car as any,{seller:"sellerId"}))});
 }
@@ -57,7 +57,7 @@ export async function updateCar(req:Request,res:Response){
  for(const key of ["year","ownerNumber","km"])if(patch[key]!==undefined)patch[key]=Number(patch[key]);
  if(patch.purchasePrice!==undefined){patch.purchasePrice=Number(patch.purchasePrice);if(!Number.isFinite(patch.purchasePrice)||patch.purchasePrice<0)return res.status(400).json({success:false,message:"Purchase price must be a valid non-negative number."});}
  const updated=await prisma.car.update({where:{id:car.id},data:patch,include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
- res.json({success:true,data:toLegacy(renameRelations(updated as any,{seller:"sellerId"}))});
+ res.json({success:true,data:toLegacy(updated)});
 }
 
 export async function updateCarDocuments(req:Request,res:Response){
