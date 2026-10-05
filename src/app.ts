@@ -39,7 +39,7 @@ app.get("/api/v1/health",(_req,res)=>res.json({
 
 app.get("/api/v1/health/db",async(_req,res)=>{
   try{
-    await prisma.$queryRaw\`SELECT 1\`;
+    await prisma.$queryRaw`SELECT 1`;
     res.json({success:true,database:"connected"});
   }catch(error){
     console.error("PostgreSQL health check failed:",error);
