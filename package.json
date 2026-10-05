@@ -1,21 +1,26 @@
 {
   "name": "sm-associate-backend",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "test:smoke": "npm run build && node scripts/smoke-test.cjs",
-    "seed:demo": "tsx scripts/seed-demo-data.ts"
+    "seed:demo": "tsx scripts/seed-demo-data.ts",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx scripts/seed-postgres.ts",
+    "db:import-mongodb": "tsx scripts/import-mongodb.ts",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate"
   },
   "dependencies": {
+    "@prisma/client": "6.16.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.18.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "swagger-jsdoc": "^6.2.8",
@@ -31,6 +36,7 @@
     "@types/node": "^24.3.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "prisma": "6.16.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
