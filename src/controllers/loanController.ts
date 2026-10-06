@@ -14,7 +14,9 @@ export async function listLoans(req:Request,res:Response){
  res.json({success:true,data:await Loan.find(filter).populate("customerId","customerId name mobile email city").sort({createdAt:-1})});
 }
 export async function getLoan(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  const followUps=await LoanFollowUp.find({loanId:loan._id}).populate("createdBy","name").sort({followUpDate:-1,createdAt:-1});
  res.json({success:true,data:{loan,followUps}});
@@ -212,7 +214,7 @@ export async function downloadLoanDocument(req:Request,res:Response){
 }
 
 export async function listFollowUps(req:Request,res:Response){
- const filter:any={}; if(req.params.id)filter.loanId=req.params.id; if(req.query.status)filter.status=String(req.query.status);
+ const filter:any={}; if(req.params.id){const loanId=await resolveLoanId(req.params.id);if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});filter.loanId=loanId;} if(req.query.status)filter.status=String(req.query.status);
  const rows=await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1});
  const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),now.getDate()),tomorrow=new Date(start); tomorrow.setDate(tomorrow.getDate()+1);
  const nextWeek=new Date(start); nextWeek.setDate(nextWeek.getDate()+7);
@@ -229,7 +231,9 @@ export async function createFollowUp(req:Request,res:Response){
 }
 export async function updateFollowUp(req:Request,res:Response){
  const followUp=await LoanFollowUp.findById(req.params.followUpId); if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
- if(String(followUp.loanId)!==String(req.params.id))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ if(String(followUp.loanId)!==String(loanId))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
  const patch:any={}; for(const key of ["status","nextFollowUpDate"]) if(req.body[key]!==undefined)patch[key]=req.body[key];
  if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){
    if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});
