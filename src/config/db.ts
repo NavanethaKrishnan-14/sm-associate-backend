@@ -2,29 +2,54 @@ import mongoose from "mongoose";
 
 let connectionPromise: Promise<typeof mongoose> | null = null;
 
-export async function connectDatabase(): Promise<void> {
+function getMongoUri(): string {
   const uri = process.env.MONGODB_URI?.trim();
 
   if (!uri) {
     throw new Error(
-      "MONGODB_URI is not configured. Add MONGODB_URI to your .env file."
+      "MONGODB_URI is not configured. Add the MongoDB Atlas connection string to the environment variables."
     );
   }
 
+  if (!/^mongodb(?:\+srv)?:\/\//i.test(uri)) {
+    throw new Error(
+      "MONGODB_URI must start with mongodb:// or mongodb+srv://."
+    );
+  }
+
+  return uri;
+}
+
+export async function connectDatabase(): Promise<void> {
+  const uri = getMongoUri();
+
   if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  if (mongoose.connection.readyState === 2 && connectionPromise) {
+    await connectionPromise;
     return;
   }
 
   if (!connectionPromise) {
     connectionPromise = mongoose
       .connect(uri, {
-        serverSelectionTimeoutMS: 10000,
+        serverSelectionTimeoutMS: 20000,
+        connectTimeoutMS: 20000,
+        socketTimeoutMS: 45000,
         maxPoolSize: 10,
+        minPoolSize: 0,
         bufferCommands: false,
-        family: 4
+        retryReads: true,
+        retryWrites: true
       })
+      .then(() => mongoose)
       .catch((error) => {
         connectionPromise = null;
+        if (mongoose.connection.readyState !== 0) {
+          void mongoose.disconnect().catch(() => undefined);
+        }
         throw error;
       });
   }
