@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 
-export function isObjectId(value: unknown): value is string {
+export function isObjectId(value: unknown): boolean {
   return typeof value === "string" && Types.ObjectId.isValid(value);
 }
 
