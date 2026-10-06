@@ -4,10 +4,13 @@ import { CarExpense } from "../models/CarExpense";
 import { CarSale } from "../models/CarSale";
 import { Customer } from "../models/Customer";
 import { nextId } from "../utils/sequence";
+import { resolveCarId, resolveCustomerId } from "../utils/resolveIds";
 import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
 export async function updateCarDocuments(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const input=req.body||{};
  const current:any=(car as any).documents||{};
@@ -153,7 +156,9 @@ export async function updateCar(req:Request,res:Response){
 export async function createCar(req:Request,res:Response){
  let seller:any=null;
  if(req.body.sellerId){
-  seller=await Customer.findById(req.body.sellerId);
+  const sellerId=await resolveCustomerId(req.body.sellerId);
+  if(!sellerId)return res.status(400).json({success:false,message:"Seller/customer not found."});
+  seller=await Customer.findById(sellerId);
   if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
  }else{
   const sellerInput=req.body.seller||{};
@@ -258,7 +263,9 @@ export async function sellCar(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(car.status==="SOLD")return res.status(409).json({success:false,message:"Car is already sold."});
- const buyer=await Customer.findById(req.body.buyerId);
+ const buyerId=await resolveCustomerId(req.body.buyerId);
+ if(!buyerId)return res.status(400).json({success:false,message:"Buyer/customer not found."});
+ const buyer=await Customer.findById(buyerId);
  if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
  const existingSale=await CarSale.findOne({carId:car._id});
  if(existingSale)return res.status(409).json({success:false,message:"Sale already exists for this car."});
