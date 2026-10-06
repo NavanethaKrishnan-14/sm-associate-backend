@@ -68,11 +68,13 @@ export async function uploadCarDocument(req:Request,res:Response){
    documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    documents.customUploads.push({name:documentName,...fileMeta});
   }
+  (car as any).documents=documents;
   await car.save();
   res.status(201).json({success:true,message:"Document uploaded successfully.",data:car});
  }catch(error){
-  console.error("Cloudinary car document upload failed:",error);
-  res.status(500).json({success:false,message:"Unable to upload document to Cloudinary."});
+  console.error("Car document upload/save failed:",error);
+  const message=error instanceof Error ? error.message : String(error || "Unknown document upload error.");
+  res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
 
