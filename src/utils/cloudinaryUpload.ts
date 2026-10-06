@@ -36,7 +36,7 @@ export async function uploadBufferToCloudinary(
   const publicId=`${folder}/${base}-${Date.now()}${resourceType==="raw"?extension:""}`;
 
   return new Promise((resolve,reject)=>{
-    const stream=cloudinary.uploader.upload_stream(
+    const stream:any=cloudinary.uploader.upload_stream(
       {
         resource_type:resourceType,
         public_id:publicId,
