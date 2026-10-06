@@ -84,6 +84,14 @@ export async function downloadCarDocument(req:Request,res:Response){
  return res.redirect(metadata.url);
 }
 
+export async function getCar(req:Request,res:Response){
+ const car=await Car.findById(req.params.id).populate("sellerId","customerId name mobile email city occupation");
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const expenses=await CarExpense.find({carId:car._id}).sort({date:-1,createdAt:-1});
+ const expenseTotal=expenses.reduce((sum,item)=>sum+Number(item.amount||0),0);
+ res.json({success:true,data:{...car.toObject(),expenseTotal,totalInvestment:car.purchasePrice+expenseTotal}});
+}
+
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined;
  const search=String(req.query.search??"").trim();
@@ -106,14 +114,27 @@ export async function updateCarStatus(req:Request,res:Response){
 export async function updateCar(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ const body=req.body||{};
  const patch:any={};
- for(const key of ["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes","status"]){
-  if(req.body[key]!==undefined)patch[key]=req.body[key];
+ for(const key of ["sellerId","registrationNumber","make","model","fuel","notes","purchaseDate","status"]){
+  if(body[key]!==undefined)patch[key]=body[key];
  }
- if(patch.sellerId!==undefined){
-  const seller=await Customer.findById(patch.sellerId);
+ if(body.sellerId!==undefined){
+  const seller=await Customer.findById(body.sellerId);
   if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
+  patch.sellerId=seller._id;
  }
+ for(const key of ["year","ownerNumber","km","purchasePrice"]){
+  if(body[key]!==undefined&&body[key]!==null&&String(body[key]).trim()!==""){
+   const value=Number(body[key]);
+   if(!Number.isFinite(value))return res.status(400).json({success:false,message:key+" must be a valid number."});
+   patch[key]=value;
+  }
+ }
+ if(patch.year!==undefined&&(patch.year<1900||patch.year>new Date().getFullYear()+1))return res.status(400).json({success:false,message:"Year must be between 1900 and next year."});
+ if(patch.ownerNumber!==undefined&&patch.ownerNumber<1)return res.status(400).json({success:false,message:"Owner number must be at least 1."});
+ if(patch.km!==undefined&&patch.km<0)return res.status(400).json({success:false,message:"KM cannot be negative."});
+ if(patch.purchasePrice!==undefined&&patch.purchasePrice<0)return res.status(400).json({success:false,message:"Purchase price cannot be negative."});
  if(patch.status!==undefined){
   const status=String(patch.status);
   if(!["AVAILABLE","RESERVED","SOLD"].includes(status))return res.status(400).json({success:false,message:"Invalid car status."});
@@ -122,12 +143,9 @@ export async function updateCar(req:Request,res:Response){
    if(!sale)return res.status(400).json({success:false,message:"A car can be marked SOLD only after a sale is recorded."});
   }
  }
- if(patch.year!==undefined)patch.year=Number(patch.year);
- if(patch.ownerNumber!==undefined)patch.ownerNumber=Number(patch.ownerNumber);
- if(patch.km!==undefined)patch.km=Number(patch.km);
- if(patch.purchasePrice!==undefined)patch.purchasePrice=Number(patch.purchasePrice);
- if(patch.purchasePrice!==undefined&&(!Number.isFinite(patch.purchasePrice)||patch.purchasePrice<0))return res.status(400).json({success:false,message:"Purchase price must be a valid non-negative number."});
+ if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No vehicle fields were provided to update."});
  const updated=await Car.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("sellerId","customerId name mobile email city");
+ if(!updated)return res.status(404).json({success:false,message:"Car not found."});
  res.json({success:true,data:updated});
 }
 export async function createCar(req:Request,res:Response){
@@ -154,9 +172,20 @@ export async function createCar(req:Request,res:Response){
    notes:sellerInput.notes
   });
  }
- const allowed=["sellerId","registrationNumber","make","model","year","ownerNumber","km","fuel","purchasePrice","purchaseDate","notes"];
  const data:any={vehicleId:await nextId("CAR","car"),sellerId:seller._id,status:"AVAILABLE"};
- for(const key of allowed) if(key!=="sellerId"&&req.body[key]!==undefined)data[key]=req.body[key];
+ const textFields=["registrationNumber","make","model","fuel","purchaseDate","notes"];
+ for(const key of textFields) if(req.body[key]!==undefined) data[key]=req.body[key];
+ for(const key of ["year","ownerNumber","km","purchasePrice"]){
+  if(req.body[key]!==undefined&&req.body[key]!==null&&String(req.body[key]).trim()!==""){
+   const value=Number(req.body[key]);
+   if(!Number.isFinite(value))return res.status(400).json({success:false,message:key+" must be a valid number."});
+   data[key]=value;
+  }
+ }
+ if(data.year!==undefined&&(data.year<1900||data.year>new Date().getFullYear()+1))return res.status(400).json({success:false,message:"Year must be between 1900 and next year."});
+ if(data.ownerNumber!==undefined&&data.ownerNumber<1)return res.status(400).json({success:false,message:"Owner number must be at least 1."});
+ if(data.km!==undefined&&data.km<0)return res.status(400).json({success:false,message:"KM cannot be negative."});
+ if(!Number.isFinite(Number(data.purchasePrice))||Number(data.purchasePrice)<0)return res.status(400).json({success:false,message:"Purchase price must be a valid non-negative number."});
  if(req.body.documents!==undefined){
   const documents=req.body.documents||{};
   const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
@@ -179,10 +208,12 @@ export async function addCarExpense(req:Request,res:Response){
  const car=await Car.findById(req.params.id);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const amount=Number(req.body.amount);
- if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid positive number."});
+ const category=String(req.body.category??"").trim();
+ if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});
+ if(!category)return res.status(400).json({success:false,message:"Expense category is required."});
  const allowed=["category","description","date"];
- const data:any={amount,carId:car._id};
- for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
+ const data:any={amount,carId:car._id,category};
+ for(const key of allowed) if(key!=="category"&&req.body[key]!==undefined) data[key]=req.body[key];
  const expense=await CarExpense.create(data);
  res.status(201).json({success:true,data:expense});
 }
@@ -199,7 +230,11 @@ export async function updateCarExpense(req:Request,res:Response){
   if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});
   expense.amount=amount;
  }
- if(req.body.category!==undefined)expense.category=String(req.body.category).trim();
+ if(req.body.category!==undefined){
+  const category=String(req.body.category).trim();
+  if(!category)return res.status(400).json({success:false,message:"Expense category is required."});
+  expense.category=category;
+ }
  if(req.body.description!==undefined)expense.description=String(req.body.description).trim();
  if(req.body.date!==undefined)expense.date=new Date(req.body.date);
  await expense.save();
