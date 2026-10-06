@@ -4,6 +4,7 @@ import { Loan } from "../models/Loan";
 import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
 import { nextId } from "../utils/sequence";
+import { resolveCustomerId } from "../utils/resolveIds";
 
 export async function listCustomers(req:Request,res:Response){
  const search=String(req.query.search??"").trim();
@@ -18,12 +19,16 @@ export async function createCustomer(req:Request,res:Response){
  res.status(201).json({success:true,data:await Customer.create(data)});
 }
 export async function getCustomer(req:Request,res:Response){
- const customer=await Customer.findById(req.params.id);
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  res.json({success:true,data:customer});
 }
 export async function updateCustomer(req:Request,res:Response){
- const customer=await Customer.findById(req.params.id);
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const patch:any={};
  for(const key of ["name","mobile","alternateMobile","email","address","city","occupation","pan","aadhaarLast4","notes"]){
@@ -33,7 +38,9 @@ export async function updateCustomer(req:Request,res:Response){
  const nextMobile=patch.mobile!==undefined?String(patch.mobile).trim():customer.mobile;
  if(!nextName||!nextMobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
  patch.name=nextName;patch.mobile=nextMobile;
- const updated=await Customer.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true});
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const updated=await Customer.findByIdAndUpdate(customerId,{$set:patch},{new:true,runValidators:true});
  res.json({success:true,data:updated});
 }
 
