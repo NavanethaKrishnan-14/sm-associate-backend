@@ -39,7 +39,9 @@ export async function updateCarDocuments(req:Request,res:Response){
 }
 
 export async function uploadCarDocument(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
@@ -75,7 +77,9 @@ export async function uploadCarDocument(req:Request,res:Response){
 }
 
 export async function downloadCarDocument(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const key=String(req.params.documentKey||"");
  const documents:any=(car as any).documents||{};
@@ -117,7 +121,9 @@ export async function updateCarStatus(req:Request,res:Response){
 }
 
 export async function updateCar(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const body=req.body||{};
  const patch:any={};
@@ -212,7 +218,9 @@ export async function listCarExpenses(req:Request,res:Response){
  res.json({success:true,data:expenses});
 }
 export async function addCarExpense(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const amount=Number(req.body.amount);
  const category=String(req.body.category??"").trim();
@@ -260,7 +268,9 @@ export async function getCarFinancials(req:Request,res:Response){
  res.json({success:true,data:{car,expenses,expenseTotal,totalInvestment,sale,netProfit}});
 }
 export async function sellCar(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(car.status==="SOLD")return res.status(409).json({success:false,message:"Car is already sold."});
  const buyerId=await resolveCustomerId(req.body.buyerId);
@@ -343,7 +353,9 @@ export async function listCarProfits(_req:Request,res:Response){
 }
 
 export async function deleteCar(req:Request,res:Response){
- const car=await Car.findById(req.params.id);
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId);
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const sale=await CarSale.findOne({carId:car._id});
  if(sale||car.status==="SOLD")return res.status(409).json({success:false,message:"Sold vehicles cannot be deleted."});
