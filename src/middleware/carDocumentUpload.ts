@@ -31,7 +31,9 @@ export const carDocumentUpload=multer({
     const extension="."+((original.split(".").pop()||"").toLowerCase());
     const mime=String(file.mimetype||"").toLowerCase();
 
-    if(allowedExtensions.has(extension)&&allowedMimeTypes.has(mime)){
+    // Android/Expo can report a valid local file as application/octet-stream
+    // or with an empty MIME type. The extension is still validated strictly.
+    if(allowedExtensions.has(extension)&&(!mime||allowedMimeTypes.has(mime))){
       return cb(null,true);
     }
 
