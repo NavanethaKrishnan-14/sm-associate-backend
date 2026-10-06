@@ -7,5 +7,6 @@ router.post("/",createCustomer);
 router.get("/:id/history",getCustomerHistory);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
+router.put("/:id",updateCustomer);
 router.delete("/:id",requireAdmin,deleteCustomer);
 export default router;
