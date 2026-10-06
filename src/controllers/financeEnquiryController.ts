@@ -4,6 +4,7 @@ import { Customer } from "../models/Customer";
 import { FinanceService, FINANCE_SERVICE_TYPES } from "../models/FinanceService";
 import { nextId } from "../utils/sequence";
 import { User } from "../models/User";
+import { resolveCustomerId, resolveUserId } from "../utils/resolveIds";
 
 export async function listFinanceEnquiries(req:Request,res:Response){
  const filter:any={};
@@ -15,7 +16,8 @@ export async function listFinanceEnquiries(req:Request,res:Response){
 }
 
 export async function createFinanceEnquiry(req:Request,res:Response){
- const customer=await Customer.findById(req.body.customerId);
+ const customerId=await resolveCustomerId(req.body.customerId);
+ const customer=customerId?await Customer.findById(customerId):null;
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
  const serviceCode=String(req.body.serviceCode||"");
  if(!FINANCE_SERVICE_TYPES.includes(serviceCode as any))return res.status(400).json({success:false,message:"Invalid finance service."});
@@ -27,7 +29,8 @@ export async function createFinanceEnquiry(req:Request,res:Response){
  if(req.user?.role==="ADMIN"&&req.body.assignedTo!==undefined){
   if(req.body.assignedTo==="")data.assignedTo=null;
   else{
-   const assignee=await User.findById(req.body.assignedTo).select("_id");
+   const assigneeId=await resolveUserId(req.body.assignedTo);
+   const assignee=assigneeId?await User.findById(assigneeId).select("_id"):null;
    if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
    data.assignedTo=assignee._id;
   }
@@ -65,7 +68,8 @@ export async function updateFinanceEnquiry(req:Request,res:Response){
  if(patch.assignedTo!==undefined){
   if(patch.assignedTo==="")patch.assignedTo=null;
   else{
-   const assignee=await User.findById(patch.assignedTo).select("_id");
+   const assigneeId=await resolveUserId(patch.assignedTo);
+   const assignee=assigneeId?await User.findById(assigneeId).select("_id"):null;
    if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
    patch.assignedTo=assignee._id;
   }
