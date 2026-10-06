@@ -5,7 +5,7 @@ export function isObjectId(value: unknown): boolean {
 }
 
 export function objectIdOrUndefined(value: unknown) {
-  return isObjectId(value) ? new Types.ObjectId(value) : undefined;
+  return isObjectId(value) ? new Types.ObjectId(String(value)) : undefined;
 }
 
 export async function resolveCustomerId(value: unknown) {
