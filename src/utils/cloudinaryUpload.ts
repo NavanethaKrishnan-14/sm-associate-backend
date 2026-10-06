@@ -2,11 +2,19 @@ import { UploadApiResponse } from "cloudinary";
 import { cloudinary, assertCloudinaryConfigured } from "../config/cloudinary";
 
 function safeSegment(value:string){
-  return value
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]/g,"-")
-    .replace(/-+/g,"-")
-    .slice(0,80)||"document";
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g,"-").replace(/-+/g,"-").slice(0,80)||"document";
+}
+
+function extensionOf(name:string){
+  const match=String(name||"").toLowerCase().match(/\.[a-z0-9]+$/);
+  return match?.[0]||"";
+}
+
+function resourceTypeFor(extension:string){
+  // Office/text/binary documents must be stored as raw assets.
+  if([".doc",".docx",".xls",".xlsx",".ppt",".pptx",".txt",".csv"].includes(extension)) return "raw" as const;
+  // Cloudinary can correctly detect images and PDFs.
+  return "auto" as const;
 }
 
 export async function uploadBufferToCloudinary(
@@ -17,19 +25,20 @@ export async function uploadBufferToCloudinary(
 ):Promise<UploadApiResponse>{
   assertCloudinaryConfigured();
 
-  if(!buffer?.length){
-    throw new Error("The selected document is empty.");
-  }
+  if(!buffer?.length) throw new Error("The selected document is empty.");
 
   const original=String(originalName||"document");
-  const extension=(original.match(/\.[^.]+$/)?.[0]||"").toLowerCase();
+  const extension=extensionOf(original);
+  const resourceType=resourceTypeFor(extension);
   const base=safeSegment(publicIdBase);
-  const publicId=`${folder}/${base}-${Date.now()}`;
+  // Raw assets need their extension in the public ID so the downloaded file
+  // retains a useful filename/type.
+  const publicId=`${folder}/${base}-${Date.now()}${resourceType==="raw"?extension:""}`;
 
   return new Promise((resolve,reject)=>{
     const stream=cloudinary.uploader.upload_stream(
       {
-        resource_type:"auto",
+        resource_type:resourceType,
         public_id:publicId,
         use_filename:false,
         unique_filename:false,
@@ -45,18 +54,14 @@ export async function uploadBufferToCloudinary(
       }
     );
 
-    stream.on("error",error=>reject(error));
+    stream.on("error",error=>reject(new Error(`Cloudinary upload stream failed: ${error instanceof Error?error.message:String(error)}`)));
     stream.end(buffer);
   });
 }
 
 export async function deleteCloudinaryAsset(publicId?:string,resourceType?:string){
   if(!publicId)return;
-
-  // Old-file cleanup must never turn a successful new upload into a failed save.
-  try{
-    assertCloudinaryConfigured();
-  }catch{
+  try{assertCloudinaryConfigured();}catch{
     console.warn("Skipping Cloudinary cleanup because Cloudinary is not configured.");
     return;
   }
