@@ -38,7 +38,29 @@ export async function createLoan(req:Request,res:Response){
   };
  }
  if(!data.loanType||!Number.isFinite(Number(data.requiredAmount))||Number(data.requiredAmount)<0)return res.status(400).json({success:false,message:"Loan type and a valid required amount are required."});
- data.requiredAmount=Number(data.requiredAmount); if(data.commission!==undefined)data.commission=Number(data.commission);
+ data.requiredAmount=Number(data.requiredAmount);
+ if(data.commission!==undefined){
+  data.commission=Number(data.commission);
+  if(!Number.isFinite(data.commission)||data.commission<0)return res.status(400).json({success:false,message:"Commission must be a valid non-negative number."});
+ }
+ for(const key of ["applicationDate","expectedDisbursementDate","disbursementDate"]){
+  if(data[key]!==undefined){
+   if(String(data[key]).trim()==="")delete data[key];
+   else{
+    const date=new Date(data[key]);
+    if(Number.isNaN(date.getTime()))return res.status(400).json({success:false,message:key+" must be a valid date."});
+    data[key]=date;
+   }
+  }
+ }
+ if(data.assignedTo!==undefined){
+  if(data.assignedTo==="")data.assignedTo=null;
+  else{
+   const assignee=await User.findById(data.assignedTo).select("_id");
+   if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
+   data.assignedTo=assignee._id;
+  }
+ }
  const loan=await Loan.create(data);
  res.status(201).json({success:true,data:await loan.populate("customerId","customerId name mobile email city")});
 }
