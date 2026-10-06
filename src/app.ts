@@ -11,6 +11,7 @@ import financeEnquiryRoutes from "./routes/financeEnquiryRoutes";
 import documentRoutes from "./routes/documentRoutes";
 import { requireAuth } from "./middleware/auth";
 import { setupSwagger } from "./config/swagger";
+import { assertCloudinaryConfigured } from "./config/cloudinary";
 
 const app=express();
 app.use(cors({origin:process.env.CLIENT_URL?.split(",")??true}));
@@ -18,7 +19,11 @@ app.use(express.json());
 app.use(morgan("dev"));
 setupSwagger(app);
 
-app.get("/api/v1/health",(_req,res)=>res.json({success:true,message:"SM Associate API is running."}));
+app.get("/api/v1/health",(_req,res)=>{
+  let cloudinaryConfigured=true;
+  try{assertCloudinaryConfigured();}catch{cloudinaryConfigured=false;}
+  res.json({success:true,message:"SM Associate API is running.",cloudinaryConfigured});
+});
 app.use("/api/v1/auth",authRoutes);
 
 app.use(requireAuth);
