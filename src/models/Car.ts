@@ -33,12 +33,20 @@ const carSchema=new Schema({
       carInsurance:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       },
       agreement:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       }
