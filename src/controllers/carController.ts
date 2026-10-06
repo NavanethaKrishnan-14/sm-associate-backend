@@ -133,7 +133,8 @@ export async function updateCar(req:Request,res:Response){
   if(body[key]!==undefined)patch[key]=body[key];
  }
  if(body.sellerId!==undefined){
-  const seller=await Customer.findById(body.sellerId);
+  const sellerId=await resolveCustomerId(body.sellerId);
+  const seller=sellerId?await Customer.findById(sellerId):null;
   if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
   patch.sellerId=seller._id;
  }
@@ -214,8 +215,10 @@ export async function createCar(req:Request,res:Response){
  res.status(201).json({success:true,data:{...populated.toObject(),car:populated,seller}});
 }
 export async function listCarExpenses(req:Request,res:Response){
- const carId=req.query.carId?String(req.query.carId):undefined;
- const filter:any=carId?{carId}:{};
+ const rawCarId=req.query.carId?String(req.query.carId):undefined;
+ const resolvedCarId=rawCarId?await resolveCarId(rawCarId):null;
+ if(rawCarId&&!resolvedCarId)return res.status(404).json({success:false,message:"Car not found."});
+ const filter:any=resolvedCarId?{carId:resolvedCarId}:{};
  const expenses=await CarExpense.find(filter).populate("carId","vehicleId registrationNumber make model year purchasePrice").sort({date:-1,createdAt:-1});
  res.json({success:true,data:expenses});
 }
@@ -238,7 +241,8 @@ export async function updateCarExpense(req:Request,res:Response){
  const expense=await CarExpense.findById(req.params.expenseId);
  if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
  if(req.body.carId!==undefined){
-  const car=await Car.findById(req.body.carId);
+  const resolvedCarId=await resolveCarId(req.body.carId);
+  const car=resolvedCarId?await Car.findById(resolvedCarId):null;
   if(!car)return res.status(400).json({success:false,message:"Vehicle not found."});
   expense.carId=car._id;
  }
@@ -371,7 +375,9 @@ export async function deleteCar(req:Request,res:Response){
 export async function deleteCarExpense(req:Request,res:Response){
  const expense=await CarExpense.findById(req.params.expenseId);
  if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
- if(String(expense.carId)!==String(req.params.id))return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ if(String(expense.carId)!==String(carId))return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});
  await expense.deleteOne();
  res.json({success:true,message:"Expense deleted successfully."});
 }
