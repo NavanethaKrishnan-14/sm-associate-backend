@@ -11,13 +11,15 @@ export async function updateCarDocuments(req:Request,res:Response){
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const input=req.body||{};
  const current:any=(car as any).documents||{};
- const customInput=Array.isArray(input.customDocuments)?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+ const customInput=input.customDocuments!==undefined&&Array.isArray(input.customDocuments)
+  ?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0)
+  :((current.customDocuments as string[])||[]);
  const seen=new Set<string>();
  const customDocuments=customInput.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
  const next:any={
-  carBook:Boolean(input.carBook),
-  carInsurance:Boolean(input.carInsurance),
-  agreement:Boolean(input.agreement),
+  carBook:input.carBook!==undefined?Boolean(input.carBook):Boolean(current.carBook),
+  carInsurance:input.carInsurance!==undefined?Boolean(input.carInsurance):Boolean(current.carInsurance),
+  agreement:input.agreement!==undefined?Boolean(input.agreement):Boolean(current.agreement),
   customDocuments
  };
  next.uploads=current.uploads||{};
