@@ -38,21 +38,23 @@ export async function updateCustomer(req:Request,res:Response){
  const nextMobile=patch.mobile!==undefined?String(patch.mobile).trim():customer.mobile;
  if(!nextName||!nextMobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
  patch.name=nextName;patch.mobile=nextMobile;
- const customerId=await resolveCustomerId(req.params.id);
- if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
- const updated=await Customer.findByIdAndUpdate(customerId,{$set:patch},{new:true,runValidators:true});
+ const updated=await Customer.findByIdAndUpdate(customer._id,{$set:patch},{new:true,runValidators:true});
  res.json({success:true,data:updated});
 }
 
 export async function deleteCustomer(req:Request,res:Response){
- const customer=await Customer.findById(req.params.id);
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const [loanCount,carCount,saleCount]=await Promise.all([Loan.countDocuments({customerId:customer._id}),Car.countDocuments({sellerId:customer._id}),CarSale.countDocuments({buyerId:customer._id})]);
  if(loanCount||carCount||saleCount)return res.status(409).json({success:false,message:"Customer cannot be deleted because transaction history exists.",data:{loanCount,carCount,saleCount}});
  await customer.deleteOne(); res.json({success:true,message:"Customer deleted successfully."});
 }
 export async function getCustomerHistory(req:Request,res:Response){
- const customer=await Customer.findById(req.params.id);
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  const [loans,carsBought,carsSold]=await Promise.all([Loan.find({customerId:customer._id}).populate("assignedTo","name email").sort({createdAt:-1}),CarSale.find({buyerId:customer._id}).populate("carId").sort({saleDate:-1}),Car.find({sellerId:customer._id}).sort({createdAt:-1})]);
  const loanCommission=loans.reduce((sum,loan)=>sum+(loan.commission||0),0);
