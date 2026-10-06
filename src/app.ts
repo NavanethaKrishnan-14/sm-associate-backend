@@ -14,16 +14,33 @@ import { setupSwagger } from "./config/swagger";
 import { assertCloudinaryConfigured } from "./config/cloudinary";
 
 const app=express();
+
+// Be tolerant of clients that accidentally include /api/v1 twice.
+app.use((req,_res,next)=>{
+  if(req.url.startsWith("/api/v1/api/v1")) req.url=req.url.replace("/api/v1/api/v1","/api/v1");
+  next();
+});
 app.use(cors({origin:process.env.CLIENT_URL?.split(",")??true}));
 app.use(express.json());
 app.use(morgan("dev"));
 setupSwagger(app);
+
+app.get("/api/v1/health/db",async (_req,res)=>{
+  try{
+    const { connectDatabase }=await import("./config/db");
+    await connectDatabase();
+    return res.json({success:true,database:"connected",mongodbConfigured:Boolean(process.env.MONGODB_URI),jwtConfigured:Boolean(process.env.JWT_SECRET),adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD)});
+  }catch(error:any){
+    return res.status(503).json({success:false,database:"disconnected",mongodbConfigured:Boolean(process.env.MONGODB_URI),jwtConfigured:Boolean(process.env.JWT_SECRET),adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD),message:error?.message||"MongoDB connection failed."});
+  }
+});
 
 app.get("/api/v1/health",(_req,res)=>{
   let cloudinaryConfigured=true;
   try{assertCloudinaryConfigured();}catch{cloudinaryConfigured=false;}
   res.json({success:true,message:"SM Associate API is running.",cloudinaryConfigured});
 });
+app.get("/api/v1",(req,res)=>res.json({success:true,message:"SM Associate API is running.",version:"v1"}));
 app.use("/api/v1/auth",authRoutes);
 
 app.use(requireAuth);
