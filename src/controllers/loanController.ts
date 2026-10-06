@@ -4,6 +4,7 @@ import { LoanFollowUp } from "../models/LoanFollowUp";
 import { Customer } from "../models/Customer";
 import { User } from "../models/User";
 import { nextId } from "../utils/sequence";
+import { resolveCustomerId, resolveLoanId, resolveUserId } from "../utils/resolveIds";
 import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
 export async function listLoans(req:Request,res:Response){
@@ -19,11 +20,13 @@ export async function getLoan(req:Request,res:Response){
  res.json({success:true,data:{loan,followUps}});
 }
 export async function createLoan(req:Request,res:Response){
- const customer=await Customer.findById(req.body.customerId);
+ const customerId=await resolveCustomerId(req.body.customerId);
+ const customer=customerId?await Customer.findById(customerId):null;
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
  const allowed=["customerId","loanType","requiredAmount","financeCompany","notes","documents"];
  if(req.user?.role==="ADMIN") allowed.push("approvedAmount","commission","applicationDate","expectedDisbursementDate","disbursementDate","rejectionReason","assignedTo");
  const data:any={loanId:await nextId("LOAN","loan"),status:"ENTERED"};
+ data.customerId=customer._id;
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
  if(data.documents){
   const docs=data.documents||{};
@@ -56,7 +59,8 @@ export async function createLoan(req:Request,res:Response){
  if(data.assignedTo!==undefined){
   if(data.assignedTo==="")data.assignedTo=null;
   else{
-   const assignee=await User.findById(data.assignedTo).select("_id");
+   const assigneeId=await resolveUserId(data.assignedTo);
+   const assignee=assigneeId?await User.findById(assigneeId).select("_id"):null;
    if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
    data.assignedTo=assignee._id;
   }
@@ -78,11 +82,15 @@ export async function updateLoan(req:Request,res:Response){
   }
  }
  if(patch.customerId!==undefined){
-  const customer=await Customer.findById(patch.customerId);
+  const customerId=await resolveCustomerId(patch.customerId);
+  const customer=customerId?await Customer.findById(customerId):null;
+  if(customer)patch.customerId=customer._id;
   if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
  }
  if(patch.assignedTo!==undefined&&patch.assignedTo!==""){
-  const assignee=await User.findById(patch.assignedTo);
+  const assigneeId=await resolveUserId(patch.assignedTo);
+  const assignee=assigneeId?await User.findById(assigneeId):null;
+  if(assignee)patch.assignedTo=assignee._id;
   if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
  }
  if(patch.requiredAmount!==undefined){patch.requiredAmount=Number(patch.requiredAmount);if(!Number.isFinite(patch.requiredAmount)||patch.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});}
@@ -91,7 +99,7 @@ export async function updateLoan(req:Request,res:Response){
  if(patch.status!==undefined&&!LOAN_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid loan status."});
  if(patch.assignedTo==="")patch.assignedTo=null;
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No loan fields were provided to update."});
- const loan=await Loan.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
+ const loan=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  res.json({success:true,data:loan});
 }
@@ -109,7 +117,9 @@ export async function updateLoanStatus(req:Request,res:Response){
  res.json({success:true,data:loan});
 }
 export async function updateLoanDocuments(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id);
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  const input=req.body||{},current:any=(loan as any).documents||{};
  const customInput=input.customDocuments!==undefined&&Array.isArray(input.customDocuments)
@@ -142,7 +152,9 @@ export async function updateLoanDocuments(req:Request,res:Response){
 }
 
 export async function uploadLoanDocument(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id);
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
@@ -179,7 +191,9 @@ export async function uploadLoanDocument(req:Request,res:Response){
 }
 
 export async function downloadLoanDocument(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id);
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  const key=String(req.params.documentKey||"");
  const documents:any=(loan as any).documents||{};
@@ -202,7 +216,9 @@ export async function listFollowUps(req:Request,res:Response){
  res.json({success:true,data:rows,summary:{open:open.length,overdue:overdue.length,dueToday:dueToday.length,upcoming:upcoming.length}});
 }
 export async function createFollowUp(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id); if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId); if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  if(!req.body.note||!req.body.followUpDate)return res.status(400).json({success:false,message:"Follow-up date and note are required."});
  const followUp=await LoanFollowUp.create({followUpDate:new Date(req.body.followUpDate),note:String(req.body.note).trim(),status:"OPEN",loanId:loan._id,createdBy:req.user?.id});
  res.status(201).json({success:true,data:await followUp.populate("createdBy","name")});
@@ -223,7 +239,9 @@ export async function updateFollowUp(req:Request,res:Response){
 }
 
 export async function deleteLoan(req:Request,res:Response){
- const loan=await Loan.findById(req.params.id);
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  await LoanFollowUp.deleteMany({loanId:loan._id});
  await loan.deleteOne();
