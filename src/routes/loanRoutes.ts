@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdmin } from "../middleware/auth";
+import { requireAdmin,requireStaffOrAdmin } from "../middleware/auth";
 import { loanDocumentUpload } from "../middleware/loanDocumentUpload";
 import { createFollowUp,createLoan,deleteFollowUp,deleteLoan,downloadLoanDocument,getLoan,listFollowUps,listLoans,updateFollowUp,updateLoan,updateLoanDocuments,updateLoanStatus,uploadLoanDocument } from "../controllers/loanController";
 const router=Router();
@@ -8,8 +8,9 @@ router.get("/",listLoans);
 router.post("/",createLoan);
 router.get("/:id",getLoan);
 router.patch("/:id",updateLoan);
+router.put("/:id",updateLoan);
 router.patch("/:id/documents",updateLoanDocuments);
-router.post("/:id/documents/:documentKey",requireAdmin,loanDocumentUpload.single("file"),uploadLoanDocument);
+router.post("/:id/documents/:documentKey",requireStaffOrAdmin,loanDocumentUpload.single("file"),uploadLoanDocument);
 router.get("/:id/documents/:documentKey/download",downloadLoanDocument);
 router.delete("/:id",requireAdmin,deleteLoan);
 router.patch("/:id/status",updateLoanStatus);
