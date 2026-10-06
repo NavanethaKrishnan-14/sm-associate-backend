@@ -35,6 +35,10 @@ app.use("/api/v1/finance-services",financeServiceRoutes);
 app.use("/api/v1/finance-enquiries",financeEnquiryRoutes);
 app.use("/api/v1/documents",documentRoutes);
 
+app.use((_req,res)=>{
+  res.status(404).json({success:false,message:"API endpoint not found.",code:"ENDPOINT_NOT_FOUND"});
+});
+
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
   const error=err as any;
   console.error("API error:",error);
