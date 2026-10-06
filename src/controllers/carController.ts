@@ -94,7 +94,9 @@ export async function downloadCarDocument(req:Request,res:Response){
 }
 
 export async function getCar(req:Request,res:Response){
- const car=await Car.findById(req.params.id).populate("sellerId","customerId name mobile email city occupation");
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId).populate("sellerId","customerId name mobile email city occupation");
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const expenses=await CarExpense.find({carId:car._id}).sort({date:-1,createdAt:-1});
  const expenseTotal=expenses.reduce((sum,item)=>sum+Number(item.amount||0),0);
@@ -155,7 +157,7 @@ export async function updateCar(req:Request,res:Response){
   }
  }
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No vehicle fields were provided to update."});
- const updated=await Car.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("sellerId","customerId name mobile email city");
+ const updated=await Car.findByIdAndUpdate(car._id,{$set:patch},{new:true,runValidators:true}).populate("sellerId","customerId name mobile email city");
  if(!updated)return res.status(404).json({success:false,message:"Car not found."});
  res.json({success:true,data:updated});
 }
@@ -258,7 +260,9 @@ export async function updateCarExpense(req:Request,res:Response){
 }
 
 export async function getCarFinancials(req:Request,res:Response){
- const car=await Car.findById(req.params.id).populate("sellerId","customerId name mobile");
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId).populate("sellerId","customerId name mobile");
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const expenses=await CarExpense.find({carId:car._id}).sort({date:-1});
  const expenseTotal=expenses.reduce((sum,item)=>sum+item.amount,0);
