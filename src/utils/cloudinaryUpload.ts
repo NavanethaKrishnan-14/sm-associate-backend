@@ -33,7 +33,7 @@ export async function uploadBufferToCloudinary(
   const base=safeSegment(publicIdBase);
   // Raw assets need their extension in the public ID so the downloaded file
   // retains a useful filename/type.
-  const publicId=`${folder}/${base}-${Date.now()}${resourceType==="raw"?extension:""}`;
+  const publicId=folder+"/"+base+"-"+Date.now()+(resourceType==="raw"?extension:"");
 
   return new Promise((resolve,reject)=>{
     const stream:any=cloudinary.uploader.upload_stream(
@@ -44,17 +44,19 @@ export async function uploadBufferToCloudinary(
         unique_filename:false,
         overwrite:false
       },
-      (error,result)=>{
+      (error:unknown,result?:UploadApiResponse)=>{
         if(error){
           const message=error instanceof Error?error.message:String(error);
-          return reject(new Error(`Cloudinary upload failed for ${extension||"document"}: ${message}`));
+          return reject(new Error("Cloudinary upload failed for "+(extension||"document")+": "+message));
         }
         if(!result)return reject(new Error("Cloudinary upload completed without a result."));
         resolve(result);
       }
     );
 
-    stream.on("error",error=>reject(new Error(`Cloudinary upload stream failed: ${error instanceof Error?error.message:String(error)}`)));
+    stream.on("error",(error:unknown)=>{
+      reject(new Error("Cloudinary upload stream failed: "+(error instanceof Error?error.message:String(error))));
+    });
     stream.end(buffer);
   });
 }
