@@ -41,12 +41,11 @@ export async function updateCarDocuments(req:Request,res:Response){
 export async function uploadCarDocument(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
- const car=await Car.findById(carId);
+ const car=await Car.findById(carId).select("_id vehicleId documents");
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
  const fixedKeys=["carBook","carInsurance","agreement"];
- const documents:any=(car as any).documents||(car as any).set("documents",{});
  if(!fixedKeys.includes(key)&&key!=="custom")return res.status(400).json({success:false,message:"Invalid document type."});
  const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
  if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
@@ -54,30 +53,28 @@ export async function uploadCarDocument(req:Request,res:Response){
   const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/cars",`${car.vehicleId||car._id}-${key==="custom"?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   if(fixedKeys.includes(key)){
-   const previous=documents.uploads?.[key];
-   await deleteCloudinaryAsset(previous?.publicId||previous?.storedName,previous?.resourceType);
-   documents[key]=true;
-   documents.uploads=documents.uploads||{};
-   documents.uploads[key]=fileMeta;
+   const previous:any=(car as any).documents?.uploads?.[key];
+   await Car.findByIdAndUpdate(car._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
   }else{
-   const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
-   if(!customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase()))documents.customDocuments=[...customNames,documentName];
-   const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+   const current:any=(car as any).documents||{};
+   const customNames=Array.isArray(current.customDocuments)?current.customDocuments:[];
+   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
    const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   await deleteCloudinaryAsset(previous?.publicId||previous?.storedName,previous?.resourceType);
-   documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   documents.customUploads.push({name:documentName,...fileMeta});
+   const nextNames=customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase())?customNames:[...customNames,documentName];
+   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   await Car.findByIdAndUpdate(car._id,{$set:{"documents.customDocuments":nextNames,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
   }
-  (car as any).documents=documents;
-  await car.save();
-  res.status(201).json({success:true,message:"Document uploaded successfully.",data:car});
+  const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
+  return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:updated});
  }catch(error){
   console.error("Car document upload/save failed:",error);
-  const message=error instanceof Error ? error.message : String(error || "Unknown document upload error.");
-  res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
+  const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
+  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
-
 export async function downloadCarDocument(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
@@ -303,44 +300,42 @@ export async function sellCar(req:Request,res:Response){
 }
 
 export async function uploadSaleDocument(req:Request,res:Response){
- const sale=await CarSale.findOne({carId:req.params.id});
+ const sale=await CarSale.findOne({carId:req.params.id}).select("_id saleId documents");
  if(!sale)return res.status(404).json({success:false,message:"Sale not found. Complete the vehicle sale first."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
  const fixedKeys=["idProof","agreement"];
- const documents:any=(sale as any).documents||(sale as any).set("documents",{});
  if(!fixedKeys.includes(key)&&key!=="custom")return res.status(400).json({success:false,message:"Invalid sale document type."});
  const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
  if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
+ const current:any=(sale as any).documents||{};
  if(key==="custom"){
-  const customNames=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
+  const customNames=Array.isArray(current.customDocuments)?current.customDocuments:[];
   if(!customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase()))return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
  }
  try{
   const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/car-sales",`${sale.saleId||sale._id}-${key==="custom"?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   if(fixedKeys.includes(key)){
-   const previous=documents.uploads?.[key];
-   await deleteCloudinaryAsset(previous?.publicId||previous?.storedName,previous?.resourceType);
-   documents[key]=true;
-   documents.uploads=documents.uploads||{};
-   documents.uploads[key]=fileMeta;
+   const previous:any=current.uploads?.[key];
+   await CarSale.findByIdAndUpdate(sale._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
   }else{
-   const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
    const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   await deleteCloudinaryAsset(previous?.publicId||previous?.storedName,previous?.resourceType);
-   documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   documents.customUploads.push({name:documentName,...fileMeta});
+   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   await CarSale.findByIdAndUpdate(sale._id,{$set:{"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
   }
-  await sale.save();
   const updated=await CarSale.findById(sale._id).populate("buyerId","customerId name mobile");
-  res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
+  return res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
  }catch(error){
   console.error("Cloudinary sale document upload failed:",error);
-  res.status(500).json({success:false,message:"Unable to upload buyer document to Cloudinary."});
+  const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
+  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
-
 export async function downloadSaleDocument(req:Request,res:Response){
  const sale=await CarSale.findOne({carId:req.params.id});
  if(!sale)return res.status(404).json({success:false,message:"Sale not found."});
