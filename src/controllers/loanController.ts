@@ -112,10 +112,18 @@ export async function updateLoanDocuments(req:Request,res:Response){
  const loan=await Loan.findById(req.params.id);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  const input=req.body||{},current:any=(loan as any).documents||{};
- const customInput=Array.isArray(input.customDocuments)?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
+ const customInput=input.customDocuments!==undefined&&Array.isArray(input.customDocuments)
+  ?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0)
+  :((current.customDocuments as string[])||[]);
  const seen=new Set<string>();
  const customDocuments=customInput.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
- const next:any={idProof:Boolean(input.idProof),addressProof:Boolean(input.addressProof),incomeProof:Boolean(input.incomeProof),bankStatement:Boolean(input.bankStatement),customDocuments};
+ const next:any={
+  idProof:input.idProof!==undefined?Boolean(input.idProof):Boolean(current.idProof),
+  addressProof:input.addressProof!==undefined?Boolean(input.addressProof):Boolean(current.addressProof),
+  incomeProof:input.incomeProof!==undefined?Boolean(input.incomeProof):Boolean(current.incomeProof),
+  bankStatement:input.bankStatement!==undefined?Boolean(input.bankStatement):Boolean(current.bankStatement),
+  customDocuments
+ };
  next.uploads=current.uploads||{};
  next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
  for(const key of ["idProof","addressProof","incomeProof","bankStatement"]){
