@@ -21,14 +21,14 @@ export async function uploadBufferToCloudinary(
     throw new Error("The selected document is empty.");
   }
 
-  const publicId=`${folder}/${safeSegment(publicIdBase)}-${Date.now()}`;
+  const original=String(originalName||"document");
+  const extension=(original.match(/\.[^.]+$/)?.[0]||"").toLowerCase();
+  const base=safeSegment(publicIdBase);
+  const publicId=`${folder}/${base}-${Date.now()}`;
 
   return new Promise((resolve,reject)=>{
     const stream=cloudinary.uploader.upload_stream(
       {
-        // Let Cloudinary detect PDFs, images and Office files automatically.
-        // Do not force the file format: forcing it can make non-image documents
-        // fail with an "unable to save/upload" error.
         resource_type:"auto",
         public_id:publicId,
         use_filename:false,
@@ -37,8 +37,8 @@ export async function uploadBufferToCloudinary(
       },
       (error,result)=>{
         if(error){
-          const message=error instanceof Error ? error.message : String(error);
-          return reject(new Error(`Cloudinary upload failed: ${message}`));
+          const message=error instanceof Error?error.message:String(error);
+          return reject(new Error(`Cloudinary upload failed for ${extension||"document"}: ${message}`));
         }
         if(!result)return reject(new Error("Cloudinary upload completed without a result."));
         resolve(result);
@@ -52,7 +52,14 @@ export async function uploadBufferToCloudinary(
 
 export async function deleteCloudinaryAsset(publicId?:string,resourceType?:string){
   if(!publicId)return;
-  assertCloudinaryConfigured();
+
+  // Old-file cleanup must never turn a successful new upload into a failed save.
+  try{
+    assertCloudinaryConfigured();
+  }catch{
+    console.warn("Skipping Cloudinary cleanup because Cloudinary is not configured.");
+    return;
+  }
 
   try{
     await cloudinary.uploader.destroy(publicId,{
