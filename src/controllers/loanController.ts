@@ -47,6 +47,14 @@ export async function updateLoan(req:Request,res:Response){
  for(const key of ["customerId","loanType","requiredAmount","approvedAmount","financeCompany","status","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]){
   if(req.body[key]!==undefined)patch[key]=req.body[key];
  }
+ for(const key of ["applicationDate","expectedDisbursementDate","disbursementDate"]){
+  if(patch[key]!==undefined&&String(patch[key]).trim()==="")delete patch[key];
+  else if(patch[key]!==undefined){
+   const date=new Date(patch[key]);
+   if(Number.isNaN(date.getTime()))return res.status(400).json({success:false,message:key+" must be a valid date."});
+   patch[key]=date;
+  }
+ }
  if(patch.customerId!==undefined){
   const customer=await Customer.findById(patch.customerId);
   if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
@@ -60,6 +68,7 @@ export async function updateLoan(req:Request,res:Response){
  if(patch.commission!==undefined){patch.commission=Number(patch.commission);if(!Number.isFinite(patch.commission)||patch.commission<0)return res.status(400).json({success:false,message:"Commission must be a valid non-negative number."});}
  if(patch.status!==undefined&&!LOAN_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid loan status."});
  if(patch.assignedTo==="")patch.assignedTo=null;
+ if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No loan fields were provided to update."});
  const loan=await Loan.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  res.json({success:true,data:loan});
