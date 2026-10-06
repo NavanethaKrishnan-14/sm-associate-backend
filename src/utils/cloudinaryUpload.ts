@@ -17,28 +17,35 @@ export async function uploadBufferToCloudinary(
 ):Promise<UploadApiResponse>{
   assertCloudinaryConfigured();
 
-  const extension=originalName.includes(".")
-    ? originalName.slice(originalName.lastIndexOf(".")+1).toLowerCase()
-    : "";
+  if(!buffer?.length){
+    throw new Error("The selected document is empty.");
+  }
 
   const publicId=`${folder}/${safeSegment(publicIdBase)}-${Date.now()}`;
 
   return new Promise((resolve,reject)=>{
     const stream=cloudinary.uploader.upload_stream(
       {
+        // Let Cloudinary detect PDFs, images and Office files automatically.
+        // Do not force the file format: forcing it can make non-image documents
+        // fail with an "unable to save/upload" error.
         resource_type:"auto",
         public_id:publicId,
         use_filename:false,
         unique_filename:false,
-        ...(extension ? {format:extension} : {})
+        overwrite:false
       },
       (error,result)=>{
-        if(error)return reject(error);
+        if(error){
+          const message=error instanceof Error ? error.message : String(error);
+          return reject(new Error(`Cloudinary upload failed: ${message}`));
+        }
         if(!result)return reject(new Error("Cloudinary upload completed without a result."));
         resolve(result);
       }
     );
 
+    stream.on("error",error=>reject(error));
     stream.end(buffer);
   });
 }
