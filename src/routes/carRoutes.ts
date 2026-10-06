@@ -16,7 +16,7 @@ router.get("/:id/financials",requireAdmin,getCarFinancials);
 router.patch("/:id/documents",requireStaffOrAdmin,updateCarDocuments);
 router.put("/:id/documents",requireStaffOrAdmin,updateCarDocuments);
 router.post("/:id/documents/:documentKey",requireStaffOrAdmin,carDocumentUpload.single("file"),uploadCarDocument);
-router.post("/:id/sale/documents/:documentKey",requireAdmin,carDocumentUpload.single("file"),uploadSaleDocument);
+router.post("/:id/sale/documents/:documentKey",requireStaffOrAdmin,carDocumentUpload.single("file"),uploadSaleDocument);
 router.get("/:id/sale/documents/:documentKey/download",requireAdmin,downloadSaleDocument);
 router.get("/:id/documents/:documentKey/download",downloadCarDocument);
 router.post("/:id/expenses",requireAdmin,addCarExpense);
