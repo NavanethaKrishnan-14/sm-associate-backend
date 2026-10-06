@@ -43,7 +43,7 @@ export async function connectDatabase(): Promise<void> {
         bufferCommands: false,
         retryReads: true,
         retryWrites: true
-      })
+      } as any)
       .then(() => mongoose)
       .catch((error) => {
         connectionPromise = null;
