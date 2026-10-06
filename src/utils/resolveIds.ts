@@ -35,6 +35,15 @@ export async function resolveLoanId(value: unknown) {
   return doc?doc._id:null;
 }
 
+export async function resolveEnquiryId(value: unknown) {
+  const { FinanceEnquiry } = await import("../models/FinanceEnquiry");
+  const raw=String(value??"").trim();
+  if(!raw) return null;
+  if(isObjectId(raw)) return new Types.ObjectId(raw);
+  const doc=await FinanceEnquiry.findOne({enquiryId:raw}).select("_id");
+  return doc?doc._id:null;
+}
+
 export async function resolveUserId(value: unknown) {
   const { User } = await import("../models/User");
   const raw=String(value??"").trim();
