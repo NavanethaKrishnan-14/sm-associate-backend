@@ -23,7 +23,7 @@ export async function createLoan(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.body.customerId);
  const customer=customerId?await Customer.findById(customerId):null;
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
- const allowed=["customerId","loanType","requiredAmount","financeCompany","notes","documents"];
+ const allowed=["loanType","requiredAmount","financeCompany","notes","documents"];
  if(req.user?.role==="ADMIN") allowed.push("approvedAmount","commission","applicationDate","expectedDisbursementDate","disbursementDate","rejectionReason","assignedTo");
  const data:any={loanId:await nextId("LOAN","loan"),status:"ENTERED"};
  data.customerId=customer._id;
@@ -69,6 +69,8 @@ export async function createLoan(req:Request,res:Response){
  res.status(201).json({success:true,data:await loan.populate("customerId","customerId name mobile email city")});
 }
 export async function updateLoan(req:Request,res:Response){
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  const patch:any={};
  for(const key of ["customerId","loanType","requiredAmount","approvedAmount","financeCompany","status","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]){
   if(req.body[key]!==undefined)patch[key]=req.body[key];
@@ -105,6 +107,8 @@ export async function updateLoan(req:Request,res:Response){
 }
 
 export async function updateLoanStatus(req:Request,res:Response){
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  const rawStatus=String(req.body.status||"");
  const status=rawStatus==="NEW"?"ENTERED":rawStatus;
  if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
@@ -112,7 +116,7 @@ export async function updateLoanStatus(req:Request,res:Response){
  if(status==="APPROVED"&&req.body.approvedAmount!==undefined){if(req.user?.role!=="ADMIN")return res.status(403).json({success:false,message:"Only ADMIN can set an approved loan amount."});patch.approvedAmount=Number(req.body.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
  if(status==="DISBURSED")patch.disbursementDate=req.body.disbursementDate||new Date();
  if(status==="REJECTED")patch.rejectionReason=req.body.rejectionReason||"";
- const loan=await Loan.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city");
+ const loan=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city");
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  res.json({success:true,data:loan});
 }
