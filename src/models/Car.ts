@@ -23,6 +23,10 @@ const carSchema=new Schema({
       carBook:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       },
@@ -43,6 +47,10 @@ const carSchema=new Schema({
       name:{type:String,trim:true,maxlength:100},
       originalName:{type:String},
       storedName:{type:String},
+      publicId:{type:String},
+      url:{type:String},
+      resourceType:{type:String},
+      format:{type:String},
       size:{type:Number},
       uploadedAt:{type:Date}
     }]
