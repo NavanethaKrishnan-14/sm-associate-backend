@@ -48,7 +48,7 @@ export async function resolveUserId(value: unknown) {
   const { User } = await import("../models/User");
   const raw=String(value??"").trim();
   if(!raw) return null;
-  if(isObjectId(raw)) return new Types.ObjectId(raw);
-  const doc=await User.findOne({email:raw.toLowerCase()}).select("_id");
+  if(Types.ObjectId.isValid(raw)) return new Types.ObjectId(raw);
+  const doc=await User.findOne({email:String(raw).toLowerCase()}).select("_id");
   return doc?doc._id:null;
 }
