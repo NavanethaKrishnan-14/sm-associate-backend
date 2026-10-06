@@ -4,7 +4,7 @@ import { Customer } from "../models/Customer";
 import { FinanceService, FINANCE_SERVICE_TYPES } from "../models/FinanceService";
 import { nextId } from "../utils/sequence";
 import { User } from "../models/User";
-import { resolveCustomerId, resolveUserId } from "../utils/resolveIds";
+import { resolveCustomerId, resolveEnquiryId, resolveUserId } from "../utils/resolveIds";
 
 export async function listFinanceEnquiries(req:Request,res:Response){
  const filter:any={};
@@ -76,7 +76,9 @@ export async function updateFinanceEnquiry(req:Request,res:Response){
  }
  if(patch.status!==undefined&&!ENQUIRY_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid enquiry status."});
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No enquiry fields were provided to update."});
- const enquiry=await FinanceEnquiry.findByIdAndUpdate(req.params.id,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email").populate("assignedTo","name email role");
+ const enquiryId=await resolveEnquiryId(req.params.id);
+ if(!enquiryId)return res.status(404).json({success:false,message:"Finance enquiry not found."});
+ const enquiry=await FinanceEnquiry.findByIdAndUpdate(enquiryId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email").populate("assignedTo","name email role");
  if(!enquiry)return res.status(404).json({success:false,message:"Finance enquiry not found."});
  res.json({success:true,data:enquiry});
 }
