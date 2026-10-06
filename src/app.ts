@@ -36,7 +36,23 @@ app.use("/api/v1/finance-enquiries",financeEnquiryRoutes);
 app.use("/api/v1/documents",documentRoutes);
 
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
-  console.error(err);
-  res.status(500).json({success:false,message:"Internal server error."});
+  const error=err as any;
+  console.error("API error:",error);
+
+  if(error?.name==="ValidationError"){
+    const details=Object.values(error.errors||{}).map((item:any)=>item?.message).filter(Boolean);
+    return res.status(400).json({success:false,message:details.length?details.join(" "):"Request validation failed.",code:"VALIDATION_ERROR"});
+  }
+  if(error?.name==="CastError"){
+    return res.status(400).json({success:false,message:"Invalid value for "+(error.path||"request parameter")+"." ,code:"INVALID_VALUE"});
+  }
+  if(error?.code===11000){
+    const fields=Object.keys(error.keyPattern||error.keyValue||{});
+    return res.status(409).json({success:false,message:fields.length?"A record with the same "+fields.join(", ")+" already exists.":"A record with the same unique value already exists.",code:"DUPLICATE_RECORD"});
+  }
+  if(error?.name==="MulterError"){
+    return res.status(400).json({success:false,message:error.code==="LIMIT_FILE_SIZE"?"File is too large. Maximum size is 10 MB.":error.message||"File upload failed.",code:"UPLOAD_ERROR"});
+  }
+  return res.status(500).json({success:false,message:"Internal server error.",code:"INTERNAL_SERVER_ERROR"});
 });
 export default app;
