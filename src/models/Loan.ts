@@ -29,24 +29,40 @@ const loanSchema=new Schema({
       idProof:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       },
       addressProof:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       },
       incomeProof:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       },
       bankStatement:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       }
@@ -55,6 +71,10 @@ const loanSchema=new Schema({
       name:{type:String,trim:true,maxlength:100},
       originalName:{type:String},
       storedName:{type:String},
+      publicId:{type:String},
+      url:{type:String},
+      resourceType:{type:String},
+      format:{type:String},
       size:{type:Number},
       uploadedAt:{type:Date}
     }]
