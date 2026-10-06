@@ -4,4 +4,5 @@ const router=Router();
 router.get("/",listFinanceEnquiries);
 router.post("/",createFinanceEnquiry);
 router.patch("/:id",updateFinanceEnquiry);
+router.put("/:id",updateFinanceEnquiry);
 export default router;
