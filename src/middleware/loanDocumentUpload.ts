@@ -7,16 +7,34 @@ const allowedMimeTypes=new Set([
   "image/webp",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
   "application/octet-stream"
 ]);
-const allowedExtensions=new Set([".pdf",".jpg",".jpeg",".png",".webp",".doc",".docx"]);
+
+const allowedExtensions=new Set([
+  ".pdf",".jpg",".jpeg",".png",".webp",
+  ".doc",".docx",".xls",".xlsx",".ppt",".pptx",".txt",".csv"
+]);
+
+const storage=multer.memoryStorage();
 
 export const loanDocumentUpload=multer({
-  storage:multer.memoryStorage(),
+  storage,
   limits:{fileSize:10*1024*1024},
   fileFilter:(_req,file,cb)=>{
-    const extension="."+String(file.originalname||"").split(".").pop()?.toLowerCase();
-    if(allowedMimeTypes.has(file.mimetype)&&allowedExtensions.has(extension))return cb(null,true);
-    cb(new Error("Unsupported document format. Use PDF, JPG, PNG, WEBP, DOC or DOCX."));
+    const original=String(file.originalname||"");
+    const extension="."+((original.split(".").pop()||"").toLowerCase());
+    const mime=String(file.mimetype||"").toLowerCase();
+
+    if(allowedExtensions.has(extension)&&allowedMimeTypes.has(mime)){
+      return cb(null,true);
+    }
+
+    cb(new Error("Unsupported document format. Supported: PDF, JPG, PNG, WEBP, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT and CSV."));
   }
 });
