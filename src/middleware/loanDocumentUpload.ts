@@ -31,7 +31,10 @@ export const loanDocumentUpload=multer({
     const extension="."+((original.split(".").pop()||"").toLowerCase());
     const mime=String(file.mimetype||"").toLowerCase();
 
-    if(allowedExtensions.has(extension)&&allowedMimeTypes.has(mime)){
+    // Android/Expo can report valid files as application/octet-stream
+    // or with an empty MIME type. Validate the extension strictly and allow
+    // those MIME variants so legitimate uploads are not rejected.
+    if(allowedExtensions.has(extension)&&(!mime||allowedMimeTypes.has(mime))){
       return cb(null,true);
     }
 
