@@ -28,6 +28,10 @@ const carSaleSchema=new Schema({
       agreement:{
         originalName:{type:String},
         storedName:{type:String},
+        publicId:{type:String},
+        url:{type:String},
+        resourceType:{type:String},
+        format:{type:String},
         size:{type:Number},
         uploadedAt:{type:Date}
       }
