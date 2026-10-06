@@ -74,6 +74,11 @@ app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.Nex
   if(error?.name==="MulterError"){
     return res.status(400).json({success:false,message:error.code==="LIMIT_FILE_SIZE"?"File is too large. Maximum size is 10 MB.":error.message||"File upload failed.",code:"UPLOAD_ERROR"});
   }
+  // Multer fileFilter errors are regular Error objects, not MulterError.
+  // Return a useful client error instead of hiding them behind HTTP 500.
+  if(error instanceof Error && /Unsupported document format|File upload failed|Unexpected field/i.test(error.message||"")){
+    return res.status(400).json({success:false,message:error.message,code:"UPLOAD_ERROR"});
+  }
   return res.status(500).json({success:false,message:"Internal server error.",code:"INTERNAL_SERVER_ERROR"});
 });
 export default app;
