@@ -259,7 +259,9 @@ export async function deleteLoan(req:Request,res:Response){
 export async function deleteFollowUp(req:Request,res:Response){
  const followUp=await LoanFollowUp.findById(req.params.followUpId);
  if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
- if(String(followUp.loanId)!==String(req.params.id))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
+ const loanId=await resolveLoanId(req.params.id);
+ if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ if(String(followUp.loanId)!==String(loanId))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
  await followUp.deleteOne();
  res.json({success:true,message:"Follow-up deleted successfully."});
 }
