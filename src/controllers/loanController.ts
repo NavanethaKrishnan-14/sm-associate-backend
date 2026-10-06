@@ -187,12 +187,14 @@ export async function uploadLoanDocument(req:Request,res:Response){
    documents.customUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    documents.customUploads.push({name:documentName,...fileMeta});
   }
+  (loan as any).documents=documents;
   await loan.save();
   const updated=await Loan.findById(loan._id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
   res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:updated});
  }catch(error){
-  console.error("Cloudinary loan document upload failed:",error);
-  res.status(500).json({success:false,message:"Unable to upload loan document to Cloudinary."});
+  console.error("Loan document upload/save failed:",error);
+  const message=error instanceof Error ? error.message : String(error || "Unknown document upload error.");
+  res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
 
