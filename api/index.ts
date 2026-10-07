@@ -9,6 +9,29 @@ async function initialize() {
 }
 
 export default async function handler(req: any, res: any) {
+  const rawUrl = String(req?.url || req?.originalUrl || "").split("?")[0];
+  const path = rawUrl.startsWith("/api/v1/api/v1")
+    ? rawUrl.replace("/api/v1/api/v1", "/api/v1")
+    : rawUrl;
+
+  // Public deployment/health checks. These must never require a JWT.
+  if (path === "/api/v1" || path === "/api/v1/health") {
+    return res.status(200).json({
+      success: true,
+      message: "SM Associate API is running successfully on Vercel.",
+      status: "healthy",
+      version: "v1",
+      environment: process.env.NODE_ENV || "production",
+      mongodbConfigured: Boolean(process.env.MONGODB_URI),
+      jwtConfigured: Boolean(process.env.JWT_SECRET),
+      cloudinaryConfigured: Boolean(
+        process.env.CLOUDINARY_CLOUD_NAME &&
+        process.env.CLOUDINARY_API_KEY &&
+        process.env.CLOUDINARY_API_SECRET
+      )
+    });
+  }
+
   try {
     if (!initialization) {
       initialization = initialize();
