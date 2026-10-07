@@ -81,6 +81,7 @@ export async function deleteCloudinaryAsset(publicId?:string,resourceType?:strin
 
 export function createCustomerDocumentUploadSignature(
   customerId:string,
+  customerName:string,
   documentKey:string,
   documentName:string,
   originalName:string
@@ -92,14 +93,24 @@ export function createCustomerDocumentUploadSignature(
   const apiSecret=String(process.env.CLOUDINARY_API_SECRET||"").trim();
   const extension=extensionOf(originalName);
   const resourceType=resourceTypeFor(extension);
-  const safeCustomer=safeSegment(customerId);
-  const safeKey=safeSegment(documentKey);
-  const safeName=documentKey==="custom"?safeSegment(documentName||"custom"):safeKey;
-  const publicIdBase=safeCustomer+"-"+safeName;
-  const publicId="sm-associate/customers/"+publicIdBase+"-"+Date.now()+(resourceType==="raw"?extension:"");
+  const safeCustomer= safeSegment(customerName) || safeSegment(customerId);
+  const safeCustomerId=safeSegment(customerId);
+  const safeKey=documentKey==="custom"
+    ? safeSegment(documentName||"custom")
+    : safeSegment(documentKey);
   const timestamp=Math.floor(Date.now()/1000);
+
+  // Cloudinary naming:
+  // sm-associate/customers/<PERSON NAME>/<DOCUMENT TYPE>-<CUSTOMER ID>-<TIMESTAMP>.<ext>
+  // Example:
+  // sm-associate/customers/Ravi-Kumar/bankStatement-CUS-0001-1730000000.pdf
+  const publicId="sm-associate/customers/"+safeCustomer+"/"+safeKey+"-"+safeCustomerId+"-"+Date.now()+(resourceType==="raw"?extension:"");
+  const displayName=(customerName+" - "+(documentKey==="custom"?documentName:documentKey))
+    .replace(/[\\/]/g,"-")
+    .slice(0,255);
+
   const signature=cloudinary.utils.api_sign_request(
-    {public_id:publicId,timestamp},
+    {public_id:publicId,timestamp,display_name:displayName},
     apiSecret
   );
 
@@ -109,6 +120,7 @@ export function createCustomerDocumentUploadSignature(
     timestamp,
     signature,
     publicId,
+    displayName,
     resourceType,
     uploadUrl:"https://api.cloudinary.com/v1_1/"+cloudName+"/"+resourceType+"/upload"
   };
