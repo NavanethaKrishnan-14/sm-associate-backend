@@ -3,11 +3,16 @@ import { bootstrapAdmin } from "../src/utils/bootstrapAdmin";
 
 let initialization: Promise<void> | null = null;
 
-function isPath(req: any, expected: string) {
-  const values = [req?.url, req?.originalUrl, req?.path]
+function requestPath(req: any): string {
+  const values = [req?.originalUrl, req?.url, req?.path]
     .filter(Boolean)
     .map(String);
-  return values.some((value) => value === expected || value.startsWith(expected + "?"));
+  return values.find((value) => value.startsWith("/api/v1/") || value === "/api/v1") ?? values[0] ?? "";
+}
+
+function isPath(req: any, expected: string) {
+  const value = requestPath(req);
+  return value === expected || value.startsWith(expected + "?");
 }
 
 async function initialize() {
@@ -65,7 +70,13 @@ export default async function handler(req: any, res: any) {
     }
     await initialization;
 
-    // Load the Express application only after the database is ready.
+    // Vercel may invoke this function with a path that contains the
+    // deployment prefix. Normalize only the duplicate-prefix case; keep the
+    // public /api/v1/... path intact for Express routing.
+    if (typeof req.url === "string" && req.url.startsWith("/api/v1/api/v1")) {
+      req.url = req.url.replace("/api/v1/api/v1", "/api/v1");
+    }
+
     const { default: app } = await import("../src/app");
     return app(req, res);
   } catch (error: any) {
