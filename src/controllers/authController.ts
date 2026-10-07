@@ -10,7 +10,15 @@ export async function login(req:Request,res:Response){
  const user=await User.findOne({email}).select("+passwordHash");
  if(!user||!user.isActive||!(await comparePassword(password,user.passwordHash)))return res.status(401).json({success:false,message:"Invalid email or password."});
  const token=signToken({userId:String(user._id),role:user.role as "ADMIN"|"STAFF"});
- res.json({success:true,data:{token,accessToken:token,user:publicUser(user)}});
+ res.status(200).json({
+  success:true,
+  message:"Login successful.",
+  data:{
+   token,
+   accessToken:token,
+   user:publicUser(user)
+  }
+ });
 }
 
 export async function me(req:Request,res:Response){ res.json({success:true,data:req.user}); }
