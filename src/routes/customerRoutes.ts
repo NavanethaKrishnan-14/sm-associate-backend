@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCustomer,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer } from "../controllers/customerController";
+import { createCustomer,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer,updateCustomerDocuments } from "../controllers/customerController";
 import { requireAdmin } from "../middleware/auth";
 import { carDocumentUpload } from "../middleware/carDocumentUpload";
 import { uploadCustomerDocument } from "../controllers/customerController";
@@ -8,6 +8,7 @@ router.get("/",listCustomers);
 router.post("/",createCustomer);
 router.get("/:id/history",getCustomerHistory);
 router.post("/:id/documents/:documentKey",carDocumentUpload.single("file"),uploadCustomerDocument);
+router.patch("/:id/documents",updateCustomerDocuments);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
 router.put("/:id",updateCustomer);
