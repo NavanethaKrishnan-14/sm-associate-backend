@@ -17,7 +17,9 @@ const customerSchema = new Schema({
     addressProof:{type:Boolean,default:false},
     incomeProof:{type:Boolean,default:false},
     bankStatement:{type:Boolean,default:false},
-    uploads:{type:Schema.Types.Mixed,default:{}}
+    customDocuments:{type:[String],default:[]},
+    uploads:{type:Schema.Types.Mixed,default:{}},
+    customUploads:{type:[Schema.Types.Mixed],default:[]}
   }
 },{timestamps:true});
 
