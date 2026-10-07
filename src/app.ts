@@ -14,14 +14,27 @@ import { setupSwagger } from "./config/swagger";
 import { assertCloudinaryConfigured } from "./config/cloudinary";
 
 const app=express();
+app.set("trust proxy",1);
+
+const allowedOrigins=(process.env.CLIENT_URL??"")
+  .split(",")
+  .map(value=>value.trim())
+  .filter(Boolean);
 
 // Be tolerant of clients that accidentally include /api/v1 twice.
 app.use((req,_res,next)=>{
   if(req.url.startsWith("/api/v1/api/v1")) req.url=req.url.replace("/api/v1/api/v1","/api/v1");
   next();
 });
-app.use(cors({origin:process.env.CLIENT_URL?.split(",")??true}));
-app.use(express.json());
+app.use(cors({
+  origin:(origin,callback)=>{
+    if(!origin||allowedOrigins.length===0||allowedOrigins.includes(origin)) return callback(null,true);
+    return callback(null,false);
+  },
+  credentials:false
+}));
+app.use(express.json({limit:"2mb"}));
+app.use(express.urlencoded({extended:true,limit:"2mb"}));
 app.use(morgan("dev"));
 setupSwagger(app);
 

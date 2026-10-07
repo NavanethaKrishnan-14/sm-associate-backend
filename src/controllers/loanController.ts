@@ -7,6 +7,9 @@ import { nextId } from "../utils/sequence";
 import { resolveCustomerId, resolveLoanId, resolveUserId } from "../utils/resolveIds";
 import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
+const STAFF_LOAN_STATUSES=new Set(["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW"]);
+const ADMIN_ONLY_LOAN_FIELDS=["approvedAmount","disbursementDate","commission","rejectionReason","assignedTo"];
+
 export async function listLoans(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined, customerId=req.query.customerId?String(req.query.customerId):undefined, search=req.query.search?String(req.query.search).trim():undefined;
  const filter:any={...(status?{status}:{}),...(customerId?{customerId}:{})};
@@ -73,54 +76,111 @@ export async function createLoan(req:Request,res:Response){
 export async function updateLoan(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+
+ const isAdmin=req.user?.role==="ADMIN";
+ const allowed=isAdmin
+  ?["customerId","loanType","requiredAmount","approvedAmount","financeCompany","status","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]
+  :["customerId","loanType","requiredAmount","financeCompany","status","applicationDate","expectedDisbursementDate","notes"];
+
+ if(!isAdmin){
+  const forbidden=ADMIN_ONLY_LOAN_FIELDS.filter(key=>req.body?.[key]!==undefined);
+  if(forbidden.length)return res.status(403).json({success:false,message:"Only ADMIN can update: "+forbidden.join(", ")+"."});
+ }
+
  const patch:any={};
- for(const key of ["customerId","loanType","requiredAmount","approvedAmount","financeCompany","status","applicationDate","expectedDisbursementDate","disbursementDate","commission","rejectionReason","notes","assignedTo"]){
-  if(req.body[key]!==undefined)patch[key]=req.body[key];
- }
- for(const key of ["applicationDate","expectedDisbursementDate","disbursementDate"]){
-  if(patch[key]!==undefined&&String(patch[key]).trim()==="")delete patch[key];
-  else if(patch[key]!==undefined){
-   const date=new Date(patch[key]);
-   if(Number.isNaN(date.getTime()))return res.status(400).json({success:false,message:key+" must be a valid date."});
-   patch[key]=date;
-  }
- }
+ for(const key of allowed) if(req.body[key]!==undefined)patch[key]=req.body[key];
+
  if(patch.customerId!==undefined){
   const customerId=await resolveCustomerId(patch.customerId);
   const customer=customerId?await Customer.findById(customerId):null;
-  if(customer)patch.customerId=customer._id;
   if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
+  patch.customerId=customer._id;
  }
- if(patch.assignedTo!==undefined&&patch.assignedTo!==""){
-  const assigneeId=await resolveUserId(patch.assignedTo);
-  const assignee=assigneeId?await User.findById(assigneeId):null;
-  if(assignee)patch.assignedTo=assignee._id;
-  if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
+
+ for(const key of ["applicationDate","expectedDisbursementDate","disbursementDate"]){
+  if(patch[key]!==undefined){
+   if(String(patch[key]).trim()===""){
+    if(key==="disbursementDate"&&isAdmin)patch[key]=new Date();
+    else delete patch[key];
+   }else{
+    const date=new Date(patch[key]);
+    if(Number.isNaN(date.getTime()))return res.status(400).json({success:false,message:key+" must be a valid date."});
+    patch[key]=date;
+   }
+  }
  }
- if(patch.requiredAmount!==undefined){patch.requiredAmount=Number(patch.requiredAmount);if(!Number.isFinite(patch.requiredAmount)||patch.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});}
- if(patch.approvedAmount!==undefined){patch.approvedAmount=Number(patch.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
- if(patch.commission!==undefined){patch.commission=Number(patch.commission);if(!Number.isFinite(patch.commission)||patch.commission<0)return res.status(400).json({success:false,message:"Commission must be a valid non-negative number."});}
- if(patch.status!==undefined&&!LOAN_STATUSES.includes(String(patch.status) as any))return res.status(400).json({success:false,message:"Invalid loan status."});
- if(patch.assignedTo==="")patch.assignedTo=null;
+
+ if(patch.assignedTo!==undefined){
+  if(patch.assignedTo==="")patch.assignedTo=null;
+  else{
+   const assigneeId=await resolveUserId(patch.assignedTo);
+   const assignee=assigneeId?await User.findById(assigneeId):null;
+   if(!assignee)return res.status(400).json({success:false,message:"Assigned user not found."});
+   patch.assignedTo=assignee._id;
+  }
+ }
+
+ if(patch.requiredAmount!==undefined){
+  patch.requiredAmount=Number(patch.requiredAmount);
+  if(!Number.isFinite(patch.requiredAmount)||patch.requiredAmount<0)return res.status(400).json({success:false,message:"Required amount must be a valid non-negative number."});
+ }
+ if(patch.approvedAmount!==undefined){
+  patch.approvedAmount=Number(patch.approvedAmount);
+  if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});
+ }
+ if(patch.commission!==undefined){
+  patch.commission=Number(patch.commission);
+  if(!Number.isFinite(patch.commission)||patch.commission<0)return res.status(400).json({success:false,message:"Commission must be a valid non-negative number."});
+ }
+
+ if(patch.status!==undefined){
+  const status=String(patch.status);
+  if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
+  if(!isAdmin&&!STAFF_LOAN_STATUSES.has(status)){
+   return res.status(403).json({success:false,message:"Only ADMIN can move a loan to "+status+"."});
+  }
+
+  const approvedAmount=patch.approvedAmount!==undefined?patch.approvedAmount:Number(loan.approvedAmount||0);
+  if(status==="APPROVED"&&(!Number.isFinite(approvedAmount)||approvedAmount<=0)){
+   return res.status(400).json({success:false,message:"Approved amount must be set before a loan can be approved."});
+  }
+  if(status==="DISBURSED"){
+   if(!isAdmin)return res.status(403).json({success:false,message:"Only ADMIN can mark a loan as DISBURSED."});
+   if(!Number.isFinite(approvedAmount)||approvedAmount<=0)return res.status(400).json({success:false,message:"An approved amount is required before disbursement."});
+   if(patch.disbursementDate===undefined)patch.disbursementDate=new Date();
+  }
+  if(status==="REJECTED"){
+   if(!isAdmin)return res.status(403).json({success:false,message:"Only ADMIN can reject a loan."});
+   const reason=String(patch.rejectionReason??loan.rejectionReason??"").trim();
+   if(!reason)return res.status(400).json({success:false,message:"Rejection reason is required when rejecting a loan."});
+   patch.rejectionReason=reason;
+  }
+  if(status==="CLOSED"){
+   if(!isAdmin)return res.status(403).json({success:false,message:"Only ADMIN can close a loan."});
+   if(!["DISBURSED","CLOSED"].includes(String(loan.status))){
+    return res.status(400).json({success:false,message:"A loan can be CLOSED only after it is DISBURSED."});
+   }
+  }
+ }
+
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No loan fields were provided to update."});
- const loan=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- res.json({success:true,data:loan});
+ const updated=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true})
+  .populate("customerId","customerId name mobile email city occupation")
+  .populate("assignedTo","name email role");
+ if(!updated)return res.status(404).json({success:false,message:"Loan not found."});
+ res.json({success:true,data:updated});
 }
 
 export async function updateLoanStatus(req:Request,res:Response){
- const loanId=await resolveLoanId(req.params.id);
- if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const rawStatus=String(req.body.status||"");
- const status=rawStatus==="NEW"?"ENTERED":rawStatus;
- if(!LOAN_STATUSES.includes(status as any))return res.status(400).json({success:false,message:"Invalid loan status."});
- const patch:any={status};
- if(status==="APPROVED"&&req.body.approvedAmount!==undefined){if(req.user?.role!=="ADMIN")return res.status(403).json({success:false,message:"Only ADMIN can set an approved loan amount."});patch.approvedAmount=Number(req.body.approvedAmount);if(!Number.isFinite(patch.approvedAmount)||patch.approvedAmount<0)return res.status(400).json({success:false,message:"Approved amount must be a valid non-negative number."});}
- if(status==="DISBURSED")patch.disbursementDate=req.body.disbursementDate||new Date();
- if(status==="REJECTED")patch.rejectionReason=req.body.rejectionReason||"";
- const loan=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email city");
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- res.json({success:true,data:loan});
+ req.body={
+  status:req.body?.status,
+  approvedAmount:req.body?.approvedAmount,
+  disbursementDate:req.body?.disbursementDate,
+  rejectionReason:req.body?.rejectionReason
+ };
+ return updateLoan(req,res);
 }
 export async function updateLoanDocuments(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
@@ -273,24 +333,49 @@ export async function listFollowUps(req:Request,res:Response){
 export async function createFollowUp(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const loan=await Loan.findById(loanId); if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- if(!req.body.note||!req.body.followUpDate)return res.status(400).json({success:false,message:"Follow-up date and note are required."});
- const followUp=await LoanFollowUp.create({followUpDate:new Date(req.body.followUpDate),note:String(req.body.note).trim(),status:"OPEN",loanId:loan._id,createdBy:req.user?.id});
+ const loan=await Loan.findById(loanId);
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+ const note=String(req.body.note??"").trim();
+ const date=new Date(req.body.followUpDate);
+ if(!note||!req.body.followUpDate)return res.status(400).json({success:false,message:"Follow-up date and note are required."});
+ if(Number.isNaN(date.getTime()))return res.status(400).json({success:false,message:"Follow-up date must be valid."});
+ const followUp=await LoanFollowUp.create({followUpDate:date,note,status:"OPEN",loanId:loan._id,createdBy:req.user?.id});
  res.status(201).json({success:true,data:await followUp.populate("createdBy","name")});
 }
 export async function updateFollowUp(req:Request,res:Response){
- const followUp=await LoanFollowUp.findById(req.params.followUpId); if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
+ const followUp=await LoanFollowUp.findById(req.params.followUpId);
+ if(!followUp)return res.status(404).json({success:false,message:"Follow-up not found."});
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  if(String(followUp.loanId)!==String(loanId))return res.status(400).json({success:false,message:"Follow-up does not belong to this loan."});
- const patch:any={}; for(const key of ["status","nextFollowUpDate"]) if(req.body[key]!==undefined)patch[key]=req.body[key];
- if(req.body.status==="COMPLETED"&&req.body.nextFollowUpDate){
-   if(!req.body.nextNote||!String(req.body.nextNote).trim())return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});
-   const next=await LoanFollowUp.create({loanId:followUp.loanId,followUpDate:new Date(req.body.nextFollowUpDate),note:String(req.body.nextNote).trim(),status:"OPEN",createdBy:req.user?.id});
-   patch.nextFollowUpDate=new Date(req.body.nextFollowUpDate);
-   const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
-   return res.json({success:true,data:updated,nextFollowUp:await next.populate("createdBy","name")});
+
+ const patch:any={};
+ if(req.body.status!==undefined){
+  const status=String(req.body.status);
+  if(!["OPEN","COMPLETED","CANCELLED"].includes(status))return res.status(400).json({success:false,message:"Invalid follow-up status."});
+  patch.status=status;
  }
+ if(req.body.nextFollowUpDate!==undefined){
+  if(String(req.body.nextFollowUpDate).trim()==="")patch.nextFollowUpDate=null;
+  else{
+   const nextDate=new Date(req.body.nextFollowUpDate);
+   if(Number.isNaN(nextDate.getTime()))return res.status(400).json({success:false,message:"Next follow-up date must be valid."});
+   patch.nextFollowUpDate=nextDate;
+  }
+ }
+
+ if(patch.status==="COMPLETED"&&req.body.nextFollowUpDate){
+  const note=String(req.body.nextNote??"").trim();
+  if(!note)return res.status(400).json({success:false,message:"Next follow-up note is required when scheduling the next follow-up."});
+  const nextDate=new Date(req.body.nextFollowUpDate);
+  if(Number.isNaN(nextDate.getTime()))return res.status(400).json({success:false,message:"Next follow-up date must be valid."});
+  const next=await LoanFollowUp.create({loanId:followUp.loanId,followUpDate:nextDate,note,status:"OPEN",createdBy:req.user?.id});
+  patch.nextFollowUpDate=nextDate;
+  const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
+  return res.json({success:true,data:updated,nextFollowUp:await next.populate("createdBy","name")});
+ }
+
+ if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No follow-up fields were provided to update."});
  const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
  res.json({success:true,data:updated});
 }
@@ -300,8 +385,22 @@ export async function deleteLoan(req:Request,res:Response){
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+
+ const documentMeta:any[]=[];
+ const documents:any=(loan as any).documents||{};
+ for(const meta of Object.values(documents.uploads||{})) if(meta)documentMeta.push(meta);
+ if(Array.isArray(documents.customUploads))documentMeta.push(...documents.customUploads);
+
  await LoanFollowUp.deleteMany({loanId:loan._id});
  await loan.deleteOne();
+
+ await Promise.all(documentMeta.map(async meta=>{
+  const publicId=meta?.publicId||meta?.storedName;
+  if(!publicId)return;
+  try{await deleteCloudinaryAsset(publicId,meta?.resourceType);}
+  catch(error){console.warn("Loan document cleanup failed:",error);}
+ }));
+
  res.json({success:true,message:"Loan deleted successfully."});
 }
 
