@@ -21,7 +21,6 @@ const allowedOrigins=(process.env.CLIENT_URL??"")
   .map(value=>value.trim())
   .filter(Boolean);
 
-// Be tolerant of clients that accidentally include /api/v1 twice.
 app.use((req,_res,next)=>{
   if(req.url.startsWith("/api/v1/api/v1")) req.url=req.url.replace("/api/v1/api/v1","/api/v1");
   next();
@@ -36,15 +35,35 @@ app.use(cors({
 app.use(express.json({limit:"2mb"}));
 app.use(express.urlencoded({extended:true,limit:"2mb"}));
 app.use(morgan("dev"));
-setupSwagger(app);
 
+// Login is the only public application endpoint.
+// /auth/me and all user-management endpoints enforce JWT inside authRoutes.
+app.use("/api/v1/auth",authRoutes);
+
+// Everything below this point requires a valid JWT.
+app.use(requireAuth);
+
+// Health, API metadata, Swagger, and all business APIs are protected.
 app.get("/api/v1/health/db",async (_req,res)=>{
   try{
     const { connectDatabase }=await import("./config/db");
     await connectDatabase();
-    return res.json({success:true,database:"connected",mongodbConfigured:Boolean(process.env.MONGODB_URI),jwtConfigured:Boolean(process.env.JWT_SECRET),adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD)});
+    return res.json({
+      success:true,
+      database:"connected",
+      mongodbConfigured:Boolean(process.env.MONGODB_URI),
+      jwtConfigured:Boolean(process.env.JWT_SECRET),
+      adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD)
+    });
   }catch(error:any){
-    return res.status(503).json({success:false,database:"disconnected",mongodbConfigured:Boolean(process.env.MONGODB_URI),jwtConfigured:Boolean(process.env.JWT_SECRET),adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD),message:error?.message||"MongoDB connection failed."});
+    return res.status(503).json({
+      success:false,
+      database:"disconnected",
+      mongodbConfigured:Boolean(process.env.MONGODB_URI),
+      jwtConfigured:Boolean(process.env.JWT_SECRET),
+      adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD),
+      message:error?.message||"MongoDB connection failed."
+    });
   }
 });
 
@@ -53,10 +72,16 @@ app.get("/api/v1/health",(_req,res)=>{
   try{assertCloudinaryConfigured();}catch{cloudinaryConfigured=false;}
   res.json({success:true,message:"SM Associate API is running.",cloudinaryConfigured});
 });
-app.get("/api/v1",(req,res)=>res.json({success:true,message:"SM Associate API is running.",version:"v1"}));
-app.use("/api/v1/auth",authRoutes);
 
-app.use(requireAuth);
+app.get("/api/v1",(_req,res)=>res.json({
+  success:true,
+  message:"SM Associate API is running.",
+  version:"v1",
+  security:"JWT required"
+}));
+
+setupSwagger(app);
+
 app.use("/api/v1/customers",customerRoutes);
 app.use("/api/v1/cars",carRoutes);
 app.use("/api/v1/loans",loanRoutes);
@@ -78,7 +103,7 @@ app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.Nex
     return res.status(400).json({success:false,message:details.length?details.join(" "):"Request validation failed.",code:"VALIDATION_ERROR"});
   }
   if(error?.name==="CastError"){
-    return res.status(400).json({success:false,message:"Invalid value for "+(error.path||"request parameter")+"." ,code:"INVALID_VALUE"});
+    return res.status(400).json({success:false,message:"Invalid value for "+(error.path||"request parameter")+".",code:"INVALID_VALUE"});
   }
   if(error?.code===11000){
     const fields=Object.keys(error.keyPattern||error.keyValue||{});
@@ -87,8 +112,6 @@ app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.Nex
   if(error?.name==="MulterError"){
     return res.status(400).json({success:false,message:error.code==="LIMIT_FILE_SIZE"?"File is too large. Maximum size is 10 MB.":error.message||"File upload failed.",code:"UPLOAD_ERROR"});
   }
-  // Multer fileFilter errors are regular Error objects, not MulterError.
-  // Return a useful client error instead of hiding them behind HTTP 500.
   if(error instanceof Error && /Unsupported document format|File upload failed|Unexpected field/i.test(error.message||"")){
     return res.status(400).json({success:false,message:error.message,code:"UPLOAD_ERROR"});
   }
