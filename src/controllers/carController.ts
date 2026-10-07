@@ -128,6 +128,9 @@ export async function updateCar(req:Request,res:Response){
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const body=req.body||{};
  const patch:any={};
+ if(body.status!==undefined&&req.user?.role!=="ADMIN"){
+  return res.status(403).json({success:false,message:"Only ADMIN can change vehicle status."});
+ }
  for(const key of ["sellerId","registrationNumber","make","model","fuel","notes","purchaseDate","status"]){
   if(body[key]!==undefined)patch[key]=body[key];
  }
