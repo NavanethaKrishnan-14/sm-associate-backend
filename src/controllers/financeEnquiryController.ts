@@ -10,7 +10,11 @@ export async function listFinanceEnquiries(req:Request,res:Response){
  const filter:any={};
  if(req.query.serviceCode)filter.serviceCode=String(req.query.serviceCode);
  if(req.query.status)filter.status=String(req.query.status);
- if(req.query.customerId)filter.customerId=String(req.query.customerId);
+ if(req.query.customerId){
+  const customerId=await resolveCustomerId(req.query.customerId);
+  if(!customerId)return res.json({success:true,data:[]});
+  filter.customerId=customerId;
+ }
  const data=await FinanceEnquiry.find(filter).populate("customerId","customerId name mobile email").populate("assignedTo","name email role").sort({createdAt:-1});
  res.json({success:true,data});
 }

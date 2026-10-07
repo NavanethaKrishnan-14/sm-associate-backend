@@ -15,6 +15,11 @@ export async function createCustomer(req:Request,res:Response){
  const allowed=["name","mobile","alternateMobile","email","address","city","occupation","pan","aadhaarLast4","notes"];
  const data:any={customerId:await nextId("CUS","customer")};
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
+ data.name=String(data.name??"").trim();
+ data.mobile=String(data.mobile??"").trim();
+ if(data.email!==undefined&&data.email!==null)data.email=String(data.email).trim().toLowerCase();
+ if(data.pan!==undefined&&data.pan!==null)data.pan=String(data.pan).trim().toUpperCase();
+ if(data.aadhaarLast4!==undefined&&data.aadhaarLast4!==null)data.aadhaarLast4=String(data.aadhaarLast4).trim();
  if(!data.name||!data.mobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
  res.status(201).json({success:true,data:await Customer.create(data)});
 }

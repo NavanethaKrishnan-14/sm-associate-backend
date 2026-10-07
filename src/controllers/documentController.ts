@@ -4,14 +4,14 @@ import { CarSale } from "../models/CarSale";
 import { Loan } from "../models/Loan";
 
 type DocumentItem={
-  id:string; name:string; originalName:string;
+  id:string; name:string; originalName:string; url?:string;
   source:"Car Buying"|"Car Sold"|"Loan";
   recordId:string; recordLabel:string; uploadedAt?:Date; size?:number;
   documentKey:string; downloadPath:string; documentName?:string;
 };
 
 function addFixed(list:DocumentItem[],meta:any,name:string,source:DocumentItem["source"],recordId:string,recordLabel:string,key:string,downloadPath:string){
-  if(meta?.storedName) list.push({id:source+"-"+recordId+"-"+key,name,originalName:meta.originalName||name,source,recordId,recordLabel,uploadedAt:meta.uploadedAt,size:meta.size,documentKey:key,downloadPath});
+  if(meta?.storedName) list.push({id:source+"-"+recordId+"-"+key,name,originalName:meta.originalName||name,url:meta.url,source,recordId,recordLabel,uploadedAt:meta.uploadedAt,size:meta.size,documentKey:key,downloadPath});
 }
 
 export async function listDocuments(_req:Request,res:Response){
@@ -31,7 +31,7 @@ export async function listDocuments(_req:Request,res:Response){
     for(const item of Array.isArray(d.customUploads)?d.customUploads:[]){
       if(!item?.storedName)continue;
       const name=String(item.name);
-      documents.push({id:"Car Buying-"+car._id+"-custom-"+name,name,originalName:item.originalName||name,source:"Car Buying",recordId:String(car._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/cars/"+car._id+"/documents/custom/download?documentName="+encodeURIComponent(name)});
+      documents.push({id:"Car Buying-"+car._id+"-custom-"+name,name,originalName:item.originalName||name,url:item.url,source:"Car Buying",recordId:String(car._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/cars/"+car._id+"/documents/custom/download?documentName="+encodeURIComponent(name)});
     }
   }
 
@@ -44,7 +44,7 @@ export async function listDocuments(_req:Request,res:Response){
     for(const item of Array.isArray(d.customUploads)?d.customUploads:[]){
       if(!item?.storedName)continue;
       const name=String(item.name);
-      documents.push({id:"Car Sold-"+sale._id+"-custom-"+name,name,originalName:item.originalName||name,source:"Car Sold",recordId:String(sale._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/cars/"+car._id+"/sale/documents/custom/download?documentName="+encodeURIComponent(name)});
+      documents.push({id:"Car Sold-"+sale._id+"-custom-"+name,name,originalName:item.originalName||name,url:item.url,source:"Car Sold",recordId:String(sale._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/cars/"+car._id+"/sale/documents/custom/download?documentName="+encodeURIComponent(name)});
     }
   }
 
@@ -57,7 +57,7 @@ export async function listDocuments(_req:Request,res:Response){
     for(const item of Array.isArray(d.customUploads)?d.customUploads:[]){
       if(!item?.storedName)continue;
       const name=String(item.name);
-      documents.push({id:"Loan-"+loan._id+"-custom-"+name,name,originalName:item.originalName||name,source:"Loan",recordId:String(loan._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/loans/"+loan._id+"/documents/custom/download?documentName="+encodeURIComponent(name)});
+      documents.push({id:"Loan-"+loan._id+"-custom-"+name,name,originalName:item.originalName||name,url:item.url,source:"Loan",recordId:String(loan._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/loans/"+loan._id+"/documents/custom/download?documentName="+encodeURIComponent(name)});
     }
   }
 
