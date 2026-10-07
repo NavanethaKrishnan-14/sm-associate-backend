@@ -78,3 +78,38 @@ export async function deleteCloudinaryAsset(publicId?:string,resourceType?:strin
     console.error("Unable to remove Cloudinary asset:",error);
   }
 }
+
+export function createCustomerDocumentUploadSignature(
+  customerId:string,
+  documentKey:string,
+  documentName:string,
+  originalName:string
+){
+  assertCloudinaryConfigured();
+
+  const cloudName=String(process.env.CLOUDINARY_CLOUD_NAME||"").trim();
+  const apiKey=String(process.env.CLOUDINARY_API_KEY||"").trim();
+  const apiSecret=String(process.env.CLOUDINARY_API_SECRET||"").trim();
+  const extension=extensionOf(originalName);
+  const resourceType=resourceTypeFor(extension);
+  const safeCustomer=safeSegment(customerId);
+  const safeKey=safeSegment(documentKey);
+  const safeName=documentKey==="custom"?safeSegment(documentName||"custom"):safeKey;
+  const publicIdBase=safeCustomer+"-"+safeName;
+  const publicId="sm-associate/customers/"+publicIdBase+"-"+Date.now()+(resourceType==="raw"?extension:"");
+  const timestamp=Math.floor(Date.now()/1000);
+  const signature=cloudinary.utils.api_sign_request(
+    {public_id:publicId,timestamp},
+    apiSecret
+  );
+
+  return {
+    cloudName,
+    apiKey,
+    timestamp,
+    signature,
+    publicId,
+    resourceType,
+    uploadUrl:"https://api.cloudinary.com/v1_1/"+cloudName+"/"+resourceType+"/upload"
+  };
+}
