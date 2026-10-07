@@ -32,12 +32,28 @@ export async function uploadCustomerDocument(req:Request,res:Response){
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
  const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
- if(!fixedKeys.includes(key))return res.status(400).json({success:false,message:"Invalid customer document type."});
+ const isCustom=key==="custom";
+ if(!fixedKeys.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid customer document type."});
+ const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
+ if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  try{
-  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/customers",`${customer.customerId||customer._id}-${key}`);
+  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/customers",`${customer.customerId||customer._id}-${isCustom?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
-  const previous:any=(customer as any).documents?.uploads?.[key];
-  const updated=await Customer.findByIdAndUpdate(customer._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+  let updated:any;
+  let previous:any;
+  if(!isCustom){
+   previous=(customer as any).documents?.uploads?.[key];
+   updated=await Customer.findByIdAndUpdate(customer._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+  }else{
+   const current:any=(customer as any).documents||{};
+   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
+   previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+   const customDocuments=Array.isArray(current.customDocuments)?current.customDocuments:[];
+   const nextDocuments=customDocuments.some((name:string)=>name.toLowerCase()===documentName.toLowerCase())?customDocuments:[...customDocuments,documentName];
+   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   updated=await Customer.findByIdAndUpdate(customer._id,{$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+  }
   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
   return res.status(201).json({success:true,message:"Customer document uploaded successfully.",data:updated});
  }catch(error){
