@@ -1,21 +1,29 @@
 import { v2 as cloudinary } from "cloudinary";
 
-const cloudName=process.env.CLOUDINARY_CLOUD_NAME?.trim();
-const apiKey=process.env.CLOUDINARY_API_KEY?.trim();
-const apiSecret=process.env.CLOUDINARY_API_SECRET?.trim();
+function getCloudinaryConfig(){
+  return {
+    cloudName:String(process.env.CLOUDINARY_CLOUD_NAME||"").trim(),
+    apiKey:String(process.env.CLOUDINARY_API_KEY||"").trim(),
+    apiSecret:String(process.env.CLOUDINARY_API_SECRET||"").trim()
+  };
+}
 
-if(cloudName&&apiKey&&apiSecret){
+function configureCloudinary(){
+  const {cloudName,apiKey,apiSecret}=getCloudinaryConfig();
+  if(!cloudName||!apiKey||!apiSecret) return false;
+
   cloudinary.config({
     cloud_name:cloudName,
     api_key:apiKey,
     api_secret:apiSecret,
     secure:true
   });
+  return true;
 }
 
 export function assertCloudinaryConfigured(){
-  if(!cloudName||!apiKey||!apiSecret){
-    throw new Error("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.");
+  if(!configureCloudinary()){
+    throw new Error("Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET to the deployment environment.");
   }
 }
 
