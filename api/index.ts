@@ -21,6 +21,20 @@ async function initialize() {
 }
 
 export default async function handler(req: any, res: any) {
+  // Public Vercel entrypoints: these must never require a JWT.
+  // This also makes opening the deployment URL in a browser useful for a quick smoke test.
+  if (isPath(req, "/") || isPath(req, "/api/v1")) {
+    return res.status(200).json({
+      success: true,
+      message: "SM Associate API is running.",
+      version: "v1",
+      endpoints: {
+        health: "/api/v1/health",
+        login: "/api/v1/auth/login"
+      }
+    });
+  }
+
   // Keep health checks independent from Express imports and application startup.
   if (isPath(req, "/api/v1/health")) {
     return res.status(200).json({
