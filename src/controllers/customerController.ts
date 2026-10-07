@@ -151,6 +151,9 @@ export async function completeCustomerDocumentUpload(req:Request,res:Response){
    });
  }catch(error){
    console.error("Customer document completion failed:",error);
+   if(publicId){
+     await deleteCloudinaryAsset(publicId,resourceType);
+   }
    return res.status(500).json({
      success:false,
      message:"Unable to save document.",
