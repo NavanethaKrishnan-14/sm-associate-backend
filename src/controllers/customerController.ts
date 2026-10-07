@@ -71,33 +71,47 @@ export async function createCustomerDocumentUpload(req:Request,res:Response){
 export async function completeCustomerDocumentUpload(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
  if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
- const customer=await Customer.findById(customerId).select("_id customerId documents");
+
+ const customer:any=await Customer.findById(customerId).select("_id customerId documents");
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
 
  const key=String(req.params.documentKey||"");
  const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
  const isCustom=key==="custom";
- if(!fixedKeys.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid customer document type."});
+ if(!fixedKeys.includes(key)&&!isCustom){
+   return res.status(400).json({success:false,message:"Invalid customer document type."});
+ }
 
  const originalName=String(req.body?.originalName||"").trim().slice(0,200);
  const publicId=String(req.body?.publicId||"").trim();
  const secureUrl=String(req.body?.secureUrl||"").trim();
- const resourceType=String(req.body?.resourceType||"").trim();
+ const resourceType=String(req.body?.resourceType||"").trim().toLowerCase();
  const format=String(req.body?.format||"").trim();
  const size=Number(req.body?.size||0);
  const documentName=isCustom?String(req.body?.documentName||"").trim().slice(0,100):"";
 
- if(!originalName||!publicId||!secureUrl)return res.status(400).json({success:false,message:"Cloudinary upload information is incomplete."});
- if(!/^https:\/\//i.test(secureUrl))return res.status(400).json({success:false,message:"Invalid Cloudinary document URL."});
- if(!["image","raw"].includes(resourceType))return res.status(400).json({success:false,message:"Invalid Cloudinary document type."});
- if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
+ if(!originalName||!publicId||!secureUrl){
+   return res.status(400).json({success:false,message:"Cloudinary upload information is incomplete."});
+ }
+ if(!/^https:\/\//i.test(secureUrl)){
+   return res.status(400).json({success:false,message:"Invalid Cloudinary document URL."});
+ }
+ if(!["image","raw","video"].includes(resourceType)){
+   return res.status(400).json({success:false,message:"Invalid Cloudinary document type."});
+ }
+ if(isCustom&&!documentName){
+   return res.status(400).json({success:false,message:"Document name is required for a custom document."});
+ }
 
- const customerPrefix="sm-associate/customers/"+String(customer.customerId||customer._id)+"-";
- if(!publicId.startsWith(customerPrefix)){
+ const expectedPrefix="sm-associate/customers/"+String(customer.customerId||customer._id)+"-";
+ if(!publicId.startsWith(expectedPrefix)){
    return res.status(400).json({success:false,message:"Invalid Cloudinary document identifier."});
  }
 
+ let previous:any=null;
+
  try{
+   const documents:any=customer.documents||{};
    const fileMeta={
      originalName,
      storedName:publicId,
@@ -109,36 +123,40 @@ export async function completeCustomerDocumentUpload(req:Request,res:Response){
      uploadedAt:new Date()
    };
 
-   let updated:any;
-   let previous:any;
+   if(!documents.uploads||typeof documents.uploads!=="object"||Array.isArray(documents.uploads)){
+     documents.uploads={};
+   }
 
    if(!isCustom){
-     previous=(customer as any).documents?.uploads?.[key];
-     updated=await Customer.findByIdAndUpdate(
-       customer._id,
-       {$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},
-       {new:true,runValidators:true}
-     );
+     previous=documents.uploads[key];
+     documents[key]=true;
+     documents.uploads[key]=fileMeta;
    }else{
-     const current:any=(customer as any).documents||{};
-     const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
-     previous=customUploads.find((item:any)=>String(item?.name||"").toLowerCase()===documentName.toLowerCase());
-     const customDocuments=Array.isArray(current.customDocuments)?current.customDocuments:[];
-     const nextDocuments=customDocuments.some((name:string)=>name.toLowerCase()===documentName.toLowerCase())
-       ?customDocuments
-       :[...customDocuments,documentName];
-     const nextUploads=customUploads.filter((item:any)=>String(item?.name||"").toLowerCase()!==documentName.toLowerCase());
-     nextUploads.push({name:documentName,...fileMeta});
-     updated=await Customer.findByIdAndUpdate(
-       customer._id,
-       {$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},
-       {new:true,runValidators:true}
+     const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
+     const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
+
+     previous=customUploads.find((item:any)=>
+       String(item?.name||"").trim().toLowerCase()===documentName.toLowerCase()
      );
+
+     if(!customDocuments.some((name:string)=>
+       String(name).trim().toLowerCase()===documentName.toLowerCase()
+     )){
+       customDocuments.push(documentName);
+     }
+
+     documents.customDocuments=customDocuments.slice(0,50);
+     documents.customUploads=[
+       ...customUploads.filter((item:any)=>
+         String(item?.name||"").trim().toLowerCase()!==documentName.toLowerCase()
+       ),
+       {name:documentName,...fileMeta}
+     ];
    }
 
-   if(!updated){
-     return res.status(404).json({success:false,message:"Customer not found."});
-   }
+   customer.documents=documents;
+   customer.markModified("documents");
+   const updated=await customer.save();
 
    if(previous?.publicId||previous?.storedName){
      await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
@@ -151,13 +169,14 @@ export async function completeCustomerDocumentUpload(req:Request,res:Response){
    });
  }catch(error){
    console.error("Customer document completion failed:",error);
-   if(publicId){
-     await deleteCloudinaryAsset(publicId,resourceType);
-   }
+
    return res.status(500).json({
      success:false,
      message:"Unable to save document.",
-     code:"DOCUMENT_UPLOAD_FAILED"
+     code:"DOCUMENT_UPLOAD_FAILED",
+     details:process.env.NODE_ENV==="production"
+       ? undefined
+       : error instanceof Error ? error.message : String(error||"Unknown database error.")
    });
  }
 }
