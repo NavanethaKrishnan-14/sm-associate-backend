@@ -86,6 +86,19 @@ export async function updateCustomer(req:Request,res:Response){
  res.json({success:true,data:updated});
 }
 
+export async function updateCustomerDocuments(req:Request,res:Response){
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId);
+ if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
+ const names=Array.isArray(req.body.customDocuments)?req.body.customDocuments.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,50):[];
+ const allowed=["idProof","addressProof","incomeProof","bankStatement"];
+ const patch:any={"documents.customDocuments":Array.from(new Set(names))};
+ for(const key of allowed)if(req.body[key]!==undefined)patch["documents."+key]=Boolean(req.body[key]);
+ const updated=await Customer.findByIdAndUpdate(customer._id,{$set:patch},{new:true,runValidators:true});
+ res.json({success:true,message:"Customer documents updated successfully.",data:updated});
+}
+
 export async function deleteCustomer(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
  if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
