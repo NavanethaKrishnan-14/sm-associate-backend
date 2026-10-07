@@ -11,7 +11,14 @@ const customerSchema = new Schema({
   occupation:{type:String,trim:true},
   pan:{type:String,trim:true,uppercase:true},
   aadhaarLast4:{type:String,trim:true},
-  notes:{type:String,trim:true}
+  notes:{type:String,trim:true},
+  documents:{
+    idProof:{type:Boolean,default:false},
+    addressProof:{type:Boolean,default:false},
+    incomeProof:{type:Boolean,default:false},
+    bankStatement:{type:Boolean,default:false},
+    uploads:{type:Schema.Types.Mixed,default:{}}
+  }
 },{timestamps:true});
 
 export type CustomerDocument=InferSchemaType<typeof customerSchema>;
