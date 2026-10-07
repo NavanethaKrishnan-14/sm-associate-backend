@@ -12,8 +12,9 @@ function extensionOf(name:string){
 
 function resourceTypeFor(extension:string){
   // Office/text/binary documents must be stored as raw assets.
-  if([".doc",".docx",".xls",".xlsx",".ppt",".pptx",".txt",".csv"].includes(extension)) return "raw" as const;
-  // Cloudinary can correctly detect images and PDFs.
+  // Keep office/text files and PDFs as raw assets. This avoids Cloudinary
+  // attempting to transform document formats during upload.
+  if([".pdf",".doc",".docx",".xls",".xlsx",".ppt",".pptx",".txt",".csv"].includes(extension)) return "raw" as const;
   return "auto" as const;
 }
 
