@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCustomer,createCustomerDocumentUpload,completeCustomerDocumentUpload,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer,updateCustomerDocuments } from "../controllers/customerController";
+import { createCustomer,createCustomerDocumentUpload,completeCustomerDocumentUpload,uploadCustomerDocument,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer,updateCustomerDocuments } from "../controllers/customerController";
 import { requireAdmin } from "../middleware/auth";
 import { customerDocumentUpload } from "../middleware/customerDocumentUpload";
 const router=Router();
