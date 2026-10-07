@@ -44,6 +44,7 @@ export async function createCustomerDocumentUpload(req:Request,res:Response){
  try{
    const signature=createCustomerDocumentUploadSignature(
      String(customer.customerId||customer._id),
+     String(customer.name||customer.customerId||customer._id),
      key,
      documentName,
      originalName
@@ -103,7 +104,12 @@ export async function completeCustomerDocumentUpload(req:Request,res:Response){
    return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  }
 
- const expectedPrefix="sm-associate/customers/"+String(customer.customerId||customer._id)+"-";
+ const safePersonName=String(customer.name||customer.customerId||customer._id)
+   .trim()
+   .replace(/[^a-zA-Z0-9_-]/g,"-")
+   .replace(/-+/g,"-")
+   .slice(0,80)||"customer";
+ const expectedPrefix="sm-associate/customers/"+safePersonName+"/";
  if(!publicId.startsWith(expectedPrefix)){
    return res.status(400).json({success:false,message:"Invalid Cloudinary document identifier."});
  }
