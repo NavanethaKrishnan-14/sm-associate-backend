@@ -5,6 +5,7 @@ import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
 import { nextId } from "../utils/sequence";
 import { resolveCustomerId } from "../utils/resolveIds";
+import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
 
 export async function listCustomers(req:Request,res:Response){
  const search=String(req.query.search??"").trim();
@@ -22,6 +23,28 @@ export async function createCustomer(req:Request,res:Response){
  if(data.aadhaarLast4!==undefined&&data.aadhaarLast4!==null)data.aadhaarLast4=String(data.aadhaarLast4).trim();
  if(!data.name||!data.mobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
  res.status(201).json({success:true,data:await Customer.create(data)});
+}
+export async function uploadCustomerDocument(req:Request,res:Response){
+ const customerId=await resolveCustomerId(req.params.id);
+ if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
+ const customer=await Customer.findById(customerId).select("_id customerId documents");
+ if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
+ if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(req.params.documentKey||"");
+ const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
+ if(!fixedKeys.includes(key))return res.status(400).json({success:false,message:"Invalid customer document type."});
+ try{
+  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/customers",`${customer.customerId||customer._id}-${key}`);
+  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
+  const previous:any=(customer as any).documents?.uploads?.[key];
+  const updated=await Customer.findByIdAndUpdate(customer._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+  if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+  return res.status(201).json({success:true,message:"Customer document uploaded successfully.",data:updated});
+ }catch(error){
+  console.error("Customer document upload/save failed:",error);
+  const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
+  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
+ }
 }
 export async function getCustomer(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
