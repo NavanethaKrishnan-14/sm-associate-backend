@@ -5,7 +5,7 @@ import { Loan } from "../models/Loan";
 
 type DocumentItem={
   id:string; name:string; originalName:string; url?:string;
-  source:"Car Buying"|"Car Sold"|"Loan";
+  source:"Customer"|"Car Buying"|"Car Sold"|"Loan";
   recordId:string; recordLabel:string; uploadedAt?:Date; size?:number;
   documentKey:string; downloadPath:string; documentName?:string;
 };
@@ -21,6 +21,24 @@ export async function listDocuments(_req:Request,res:Response){
     CarSale.find().populate("carId","vehicleId registrationNumber make model").populate("buyerId","customerId name").sort({createdAt:-1})
   ]);
   const documents:DocumentItem[]=[];
+
+  // Customer documents are stored directly on the customer record. Include them
+  // here so an upload is visible in the central Documents screen as well.
+  const { Customer } = await import("../models/Customer");
+  const customers=await Customer.find().sort({createdAt:-1});
+  for(const customer of customers){
+    const d:any=(customer as any).documents||{};
+    const label=[customer.customerId,customer.name,customer.mobile].filter(Boolean).join(" - ")||String(customer._id);
+    const fixed:[string,string][]=[["idProof","ID Proof"],["addressProof","Address Proof"],["incomeProof","Income Proof"],["bankStatement","Bank Statement"]];
+    for(const [key,name] of fixed){
+      addFixed(documents,d.uploads?.[key],name,"Customer",String(customer._id),label,key,"/customers/"+customer._id+"/documents/"+key);
+    }
+    for(const item of Array.isArray(d.customUploads)?d.customUploads:[]){
+      if(!item?.storedName)continue;
+      const name=String(item.name);
+      documents.push({id:"Customer-"+customer._id+"-custom-"+name,name,originalName:item.originalName||name,url:item.url,source:"Customer",recordId:String(customer._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/customers/"+customer._id+"/documents/custom"});
+    }
+  }
 
   for(const car of cars){
     const d:any=(car as any).documents||{};
