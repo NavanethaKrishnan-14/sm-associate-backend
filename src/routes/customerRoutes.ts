@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { createCustomer,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer } from "../controllers/customerController";
 import { requireAdmin } from "../middleware/auth";
+import { carDocumentUpload } from "../middleware/carDocumentUpload";
+import { uploadCustomerDocument } from "../controllers/customerController";
 const router=Router();
 router.get("/",listCustomers);
 router.post("/",createCustomer);
 router.get("/:id/history",getCustomerHistory);
+router.post("/:id/documents/:documentKey",carDocumentUpload.single("file"),uploadCustomerDocument);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
 router.put("/:id",updateCustomer);
