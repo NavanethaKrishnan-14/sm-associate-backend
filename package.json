@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:push": "prisma db push",
-    "vercel-build": "prisma generate && tsc"
+    "vercel-build": "prisma generate && prisma migrate deploy && tsc"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
