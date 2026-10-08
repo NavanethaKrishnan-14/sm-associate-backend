@@ -1,5 +1,6 @@
-import { seedDemoDataOnce } from "../utils/seedDemoData";
+import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { prisma } from "../config/db";
+import { DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { Request, Response } from "express";
 
 const loanActiveStatuses=["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"] as const;
@@ -14,7 +15,7 @@ const sumSales=(rows:any[])=>rows.reduce((a,s)=>({
 
 async function ensureDemoData(){
  if(process.env.NODE_ENV!=="production")return;
- try{await seedDemoDataOnce("sm-associate-demo-seed-20261008");}
+ try{await seedDemoDataOnce(DEMO_SEED_MARKER);}
  catch(error){console.error("Production demo data repair failed:",error);}
 }
 
