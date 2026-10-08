@@ -1,6 +1,5 @@
 import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { prisma } from "../config/db";
-import { DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { Request, Response } from "express";
 
 const loanActiveStatuses=["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"] as const;
