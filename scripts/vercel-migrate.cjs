@@ -1,11 +1,11 @@
 const { spawnSync } = require("node:child_process");
 
 function getMigrationDatabaseUrl() {
-  const raw = process.env.DATABASE_URL;
+  const raw = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
   if (!raw) {
     throw new Error(
-      "DATABASE_URL is required for Prisma migrations. Configure the Vercel production database connection."
+      "DATABASE_URL (or DIRECT_URL) is required for Prisma migrations. Configure the Vercel production database connection."
     );
   }
 
