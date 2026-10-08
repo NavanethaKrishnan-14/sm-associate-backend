@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/db";
 import { FinanceEnquiry, ENQUIRY_STATUSES } from "../models/FinanceEnquiry";
 import { Customer } from "../models/Customer";
 import { FinanceService, FINANCE_SERVICE_TYPES } from "../models/FinanceService";
@@ -7,16 +8,33 @@ import { User } from "../models/User";
 import { resolveCustomerId, resolveEnquiryId, resolveUserId } from "../utils/resolveIds";
 
 export async function listFinanceEnquiries(req:Request,res:Response){
- const filter:any={};
- if(req.query.serviceCode)filter.serviceCode=String(req.query.serviceCode);
- if(req.query.status)filter.status=String(req.query.status);
+ const where:any={};
+ if(req.query.serviceCode)where.serviceCode=String(req.query.serviceCode);
+ if(req.query.status)where.status=String(req.query.status);
  if(req.query.customerId){
   const customerId=await resolveCustomerId(req.query.customerId);
   if(!customerId)return res.json({success:true,data:[]});
-  filter.customerId=customerId;
+  where.customerId=customerId;
  }
- const data=await FinanceEnquiry.find(filter).populate("customerId","customerId name mobile email").populate("assignedTo","name email role").sort({createdAt:-1});
- res.json({success:true,data});
+
+ const rows=await prisma.financeEnquiry.findMany({
+  where,
+  orderBy:{createdAt:"desc"},
+  include:{
+   customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}},
+   service:{select:{code:true,name:true,category:true,active:true}},
+   assignee:{select:{id:true,name:true,email:true,role:true}}
+  }
+ });
+
+ const data=rows.map((row:any)=>({
+  ...row,
+  _id:row.id,
+  customerId:row.customer?{...row.customer,_id:row.customer.id}:row.customerId,
+  assignedTo:row.assignee?{...row.assignee,_id:row.assignee.id}:row.assignedTo
+ }));
+
+ return res.json({success:true,data});
 }
 
 export async function createFinanceEnquiry(req:Request,res:Response){
