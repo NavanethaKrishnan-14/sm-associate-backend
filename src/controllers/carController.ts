@@ -334,7 +334,7 @@ export async function uploadSaleDocument(req:Request,res:Response){
   const updated=await CarSale.findById(sale._id).populate("buyerId","customerId name mobile");
   return res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
  }catch(error){
-  console.error("Cloudinary sale document upload failed:",error);
+  console.error("PostgreSQL sale document upload failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
   return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
