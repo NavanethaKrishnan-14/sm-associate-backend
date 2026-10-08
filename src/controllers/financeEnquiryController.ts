@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
+import { seedDemoDataOnce } from "../utils/seedDemoData";
 import { FinanceEnquiry, ENQUIRY_STATUSES } from "../models/FinanceEnquiry";
 import { Customer } from "../models/Customer";
 import { FinanceService, FINANCE_SERVICE_TYPES } from "../models/FinanceService";
@@ -8,6 +9,10 @@ import { User } from "../models/User";
 import { resolveCustomerId, resolveEnquiryId, resolveUserId } from "../utils/resolveIds";
 
 export async function listFinanceEnquiries(req:Request,res:Response){
+ if(process.env.NODE_ENV==="production"){
+  try{await seedDemoDataOnce("sm-associate-demo-seed-20261008");}
+  catch(error){console.error("Finance enquiry demo data repair failed:",error);}
+ }
  const where:any={};
  if(req.query.serviceCode)where.serviceCode=String(req.query.serviceCode);
  if(req.query.status)where.status=String(req.query.status);
