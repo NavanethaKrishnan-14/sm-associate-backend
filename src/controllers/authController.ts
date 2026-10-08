@@ -39,7 +39,7 @@ export async function createUser(req:Request,res:Response){
 }
 
 export async function updateUser(req:Request,res:Response){
-  const target=await prisma.user.findUnique({where:{id:req.params.id}});
+  const target=await prisma.user.findUnique({where:{id:String(req.params.id)}});
   if(!target)return res.status(404).json({success:false,message:"User not found."});
   const nextRole=req.body.role==="ADMIN"||req.body.role==="STAFF"?req.body.role:target.role;
   const nextActive=typeof req.body.isActive==="boolean"?req.body.isActive:target.isActive;
