@@ -74,7 +74,7 @@ function alias(record:any,model?:ModelName):any{
     financeService:{}
   };
   for(const [relation,field] of Object.entries(reverse[model||""]||{})){
-    if(out[relation]!==undefined) out[field]=out[relation];
+    if(out[relation]!==undefined) out[String(field)]=out[relation];
   }
   return out;
 }
@@ -86,7 +86,7 @@ function buildInclude(model:ModelName,pops:any[]):any{
     const rel=relationMap[model]?.[path];
     if(!rel)continue;
     const nested=typeof p==="object"&&p.populate?[p.populate]:[];
-    const selectFields=typeof p==="object"&&p.select?String(p.select).split(/\\s+/).filter(Boolean):[];
+    const selectFields=typeof p==="object"&&p.select?String(p.select).split(/\s+/).filter(Boolean):[];
     const select:any=selectFields.length?Object.fromEntries(selectFields.map((f:string)=>[f.replace(/^[-+]/,""),!f.startsWith("-")])):undefined;
     if(nested.length) include[rel]={include:buildInclude(relationModel(model,path),nested),...(select?{select}:{})};
     else include[rel]=select?{select}:true;
@@ -97,7 +97,7 @@ function relationModel(model:ModelName,path:string):ModelName{
   const map:any={customer:{customer:"customer",assignee:"user"},car:{seller:"customer"},carExpense:{car:"car"},carSale:{car:"car",buyer:"customer"},financeEnquiry:{customer:"customer",service:"financeService",assignee:"user"},loan:{customer:"customer",assignee:"user",followUps:"loanFollowUp"},loanFollowUp:{loan:"loan",creator:"user"}};
   return map[model]?.[path]||model;
 }
-class Query<T=any> implements PromiseLike<T>{
+class Query<T=any>{
   private pops:any[]=[]; private fields?:string; private sortSpec:any;
   constructor(private model:ModelName,private op:"find"|"findOne"|"findById",private arg:any){}
   select(fields:string){this.fields=fields;return this;}
@@ -110,14 +110,14 @@ class Query<T=any> implements PromiseLike<T>{
     if(this.op==="findById")rows=await d.findMany({where:{id:String(this.arg)},...(Object.keys(include).length?{include}:{})});
     else if(this.op==="findOne")rows=await d.findMany({...(Object.keys(include).length?{include}:{})});
     else rows=await d.findMany({...(Object.keys(include).length?{include}:{})});
-    rows=rows.map((x:any)=>alias(x,model)).filter((r:any)=>this.op==="findById"||matches(r,this.arg));
+    rows=rows.map((x:any)=>alias(x,this.model)).filter((r:any)=>this.op==="findById"||matches(r,this.arg));
     if(this.op==="findOne")rows=rows.slice(0,1);
     if(this.sortSpec)rows.sort((a,b)=>{for(const [k,dir] of Object.entries(this.sortSpec)){const av=getPath(a,k),bv=getPath(b,k);if(av===bv)continue;return (av>bv?1:-1)*(Number(dir)>0?1:-1);}return 0;});
     rows=rows.map(r=>this.project(r));
     return (this.op==="find"?rows:rows[0]??null) as T;
   }
   private project(r:any){if(!this.fields)return r;const tokens=this.fields.split(/\s+/).filter(Boolean);const negative=tokens[0]?.startsWith("-");if(negative){const o={...r};for(const t of tokens)o[t.replace(/^-/,"")]=undefined;return o;}const o:any={_id:r._id,id:r.id};for(const t of tokens){const k=t.replace(/^\+/,"");if(k in r)o[k]=r[k];}return o;}
-  then<TResult1=T,TResult2=never>(onfulfilled?:((v:T)=>TResult1|PromiseLike<TResult1>)|null,onrejected?:((r:any)=>TResult2|PromiseLike<TResult2>)|null){return this.exec().then(onfulfilled as any,onrejected as any);}
+  then(onfulfilled?:any,onrejected?:any){return this.exec().then(onfulfilled,onrejected);}
 }
 class ModelInstance{
   constructor(private model:ModelName,public data:any){
@@ -134,7 +134,7 @@ class ModelInstance{
   }
   get _id(){return this.data._id??this.data.id;}
   set _id(v:any){this.data._id=v;this.data.id=v;}
-  async save(){const id=String(this.data._id??this.data.id);const update:any={};for(const k of scalarMap[this.model]){if(k==="id"||k==="createdAt"||k==="updatedAt")continue;if(this.data[k]!==undefined)update[k]=this.data[k];}const r=await delegate(this.model).update({where:{id},data:update});Object.assign(this.data,alias(r,model));return this;}
+  async save(){const id=String(this.data._id??this.data.id);const update:any={};for(const k of scalarMap[this.model]){if(k==="id"||k==="createdAt"||k==="updatedAt")continue;if(this.data[k]!==undefined)update[k]=this.data[k];}const r=await delegate(this.model).update({where:{id},data:update});Object.assign(this.data,alias(r,this.model));return this;}
   async deleteOne(){return delegate(this.model).delete({where:{id:String(this.data._id??this.data.id)}});}
   markModified(_path:string){}
   toObject(){return {...this.data};}
