@@ -1,65 +1,165 @@
 import { seedDemoDataOnce } from "../utils/seedDemoData";
+import { prisma } from "../config/db";
 import { Request, Response } from "express";
-import { Car } from "../models/Car";
-import { CarSale } from "../models/CarSale";
-import { CarExpense } from "../models/CarExpense";
-import { Customer } from "../models/Customer";
-import { Loan } from "../models/Loan";
-import { LoanFollowUp } from "../models/LoanFollowUp";
+
+const loanActiveStatuses=["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"] as const;
+const inventoryStatuses=["AVAILABLE","RESERVED"] as const;
+
+const sumSales=(rows:any[])=>rows.reduce((a,s)=>({
+ sales:a.sales+Number(s.sellingPrice||0),
+ investment:a.investment+Number(s.totalInvestment||0),
+ expenses:a.expenses+Number(s.sellingExpenses||0),
+ profit:a.profit+Number(s.profit||0)
+}),{sales:0,investment:0,expenses:0,profit:0});
+
+async function ensureDemoData(){
+ if(process.env.NODE_ENV!=="production")return;
+ try{await seedDemoDataOnce("sm-associate-demo-seed-20261008");}
+ catch(error){console.error("Production demo data repair failed:",error);}
+}
 
 export async function dashboard(req:Request,res:Response){
- if(process.env.NODE_ENV==="production"){
-  try{
-   await seedDemoDataOnce("sm-associate-demo-seed-20261008");
-  }catch(error){
-   console.error("Production demo data repair failed:",error);
-  }
- }
- const now=new Date(), startMonth=new Date(now.getFullYear(),now.getMonth(),1), startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
- const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue,inventoryExpenses]=await Promise.all([
-  Customer.countDocuments(),
-  Loan.countDocuments({status:{$in:["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED"]}}),
-  Car.countDocuments({status:{$in:["AVAILABLE","RESERVED"]}}),
-  Car.countDocuments({status:"SOLD"}),
-  CarSale.find({}, {profit:1,sellingPrice:1,totalInvestment:1,sellingExpenses:1}),
-  Loan.aggregate([{$group:{_id:"$status",count:{$sum:1}}}]),
-  LoanFollowUp.countDocuments({status:"OPEN"}),
-  CarSale.find({saleDate:{$gte:startMonth,$lt:startNext}},{profit:1,sellingPrice:1,totalInvestment:1,sellingExpenses:1}),
-  Loan.find({createdAt:{$gte:startMonth,$lt:startNext}},{requiredAmount:1,approvedAmount:1,commission:1,status:1}),
-  Car.find({status:{$in:["AVAILABLE","RESERVED"]}},{_id:1,purchasePrice:1}),
-  CarExpense.find({}, {carId:1,amount:1})
+ await ensureDemoData();
+
+ const now=new Date();
+ const startMonth=new Date(now.getFullYear(),now.getMonth(),1);
+ const startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
+
+ const [
+  customers,
+  activeLoans,
+  inventory,
+  sold,
+  sales,
+  loanCounts,
+  openFollowUps,
+  monthSales,
+  monthLoans,
+  inventoryValue
+ ]=await Promise.all([
+  prisma.customer.count(),
+  prisma.loan.count({where:{status:{in:[...loanActiveStatuses]}}}),
+  prisma.car.count({where:{status:{in:[...inventoryStatuses]}}}),
+  prisma.car.count({where:{status:"SOLD"}}),
+  prisma.carSale.findMany({select:{profit:true,sellingPrice:true,totalInvestment:true,sellingExpenses:true}}),
+  prisma.loan.groupBy({by:["status"],_count:{_all:true}}),
+  prisma.loanFollowUp.count({where:{status:"OPEN"}}),
+  prisma.carSale.findMany({where:{saleDate:{gte:startMonth,lt:startNext}},select:{profit:true,sellingPrice:true,totalInvestment:true,sellingExpenses:true}}),
+  prisma.loan.findMany({where:{createdAt:{gte:startMonth,lt:startNext}},select:{requiredAmount:true,approvedAmount:true,commission:true,status:true}}),
+  prisma.car.aggregate({where:{status:{in:[...inventoryStatuses]}},_sum:{purchasePrice:true}})
  ]);
- const sumSales=(rows:any[])=>rows.reduce((a,s)=>({sales:a.sales+s.sellingPrice,investment:a.investment+s.totalInvestment,expenses:a.expenses+s.sellingExpenses,profit:a.profit+s.profit}),{sales:0,investment:0,expenses:0,profit:0});
- const totals=sumSales(sales), monthlyCar=sumSales(monthSales);
- const monthlyLoan=monthLoans.reduce((a,l)=>({required:a.required+l.requiredAmount,approved:a.approved+(l.approvedAmount||0),commission:a.commission+(l.commission||0),count:a.count+1}),{required:0,approved:0,commission:0,count:0});
- const loanPipeline:any={}; for(const x of loanCounts) loanPipeline[x._id]=x.count;
-  const currentInventoryValue=inventoryValue.reduce((s,c:any)=>s+Number(c.purchasePrice||0),0);
- const isAdmin=req.user?.role==="ADMIN";
- const data:any={customers,activeLoans,carsInInventory:inventory,carsSold:sold,openFollowUps,loanPipeline};
- if(isAdmin){data.totalSales=totals.sales;data.totalInvestment=totals.investment;data.totalSellingExpenses=totals.expenses;data.totalProfit=totals.profit;data.inventoryValue=currentInventoryValue;data.monthly={carSales:monthlyCar,loans:monthlyLoan};}
- res.json({success:true,data});
+
+ const totals=sumSales(sales);
+ const monthlyCar=sumSales(monthSales);
+ const monthlyLoan=monthLoans.reduce((a,l)=>({
+  required:a.required+Number(l.requiredAmount||0),
+  approved:a.approved+Number(l.approvedAmount||0),
+  commission:a.commission+Number(l.commission||0),
+  count:a.count+1
+ }),{required:0,approved:0,commission:0,count:0});
+ const loanPipeline:any={};
+ for(const row of loanCounts)loanPipeline[row.status]=row._count._all;
+
+ const data:any={
+  customers,
+  activeLoans,
+  carsInInventory:inventory,
+  carsSold:sold,
+  openFollowUps,
+  loanPipeline
+ };
+ if(req.user?.role==="ADMIN"){
+  data.totalSales=totals.sales;
+  data.totalInvestment=totals.investment;
+  data.totalSellingExpenses=totals.expenses;
+  data.totalProfit=totals.profit;
+  data.inventoryValue=Number(inventoryValue._sum.purchasePrice||0);
+  data.monthly={carSales:monthlyCar,loans:monthlyLoan};
+ }
+ return res.json({success:true,data});
 }
 
 export async function loanRevenue(_req:Request,res:Response){
- const loans=await Loan.find({}).populate("customerId","customerId name mobile").sort({createdAt:-1});
- const eligible=loans.filter(l=>["APPROVED","DISBURSED","CLOSED"].includes(l.status));
- const totalCommission=eligible.reduce((sum,l)=>sum+(l.commission||0),0);
- const disbursedCommission=loans.filter(l=>["DISBURSED","CLOSED"].includes(l.status)).reduce((sum,l)=>sum+(l.commission||0),0);
- const byType:any={},byFinance:any={}; for(const l of loans){const type=l.loanType||"Other";byType[type]=(byType[type]||0)+(l.commission||0);const finance=l.financeCompany||"Unassigned";byFinance[finance]=(byFinance[finance]||0)+(l.commission||0);}
- res.json({success:true,data:{summary:{totalCommission,disbursedCommission,approvedOrBetter:eligible.length},byType,byFinance,loans}});
+ await ensureDemoData();
+ const loans=await prisma.loan.findMany({
+  orderBy:{createdAt:"desc"},
+  include:{customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}
+ });
+ const mapped=loans.map((row:any)=>({
+  ...row,
+  _id:row.id,
+  customerId:row.customer?{...row.customer,_id:row.customer.id}:row.customerId
+ }));
+ const eligible=mapped.filter((l:any)=>["APPROVED","DISBURSED","CLOSED"].includes(l.status));
+ const totalCommission=eligible.reduce((sum:number,l:any)=>sum+Number(l.commission||0),0);
+ const disbursedCommission=mapped.filter((l:any)=>["DISBURSED","CLOSED"].includes(l.status)).reduce((sum:number,l:any)=>sum+Number(l.commission||0),0);
+ const byType:any={};
+ const byFinance:any={};
+ for(const l of mapped){
+  const type=l.loanType||"Other";
+  const finance=l.financeCompany||"Unassigned";
+  byType[type]=(byType[type]||0)+Number(l.commission||0);
+  byFinance[finance]=(byFinance[finance]||0)+Number(l.commission||0);
+ }
+ return res.json({success:true,data:{summary:{totalCommission,disbursedCommission,approvedOrBetter:eligible.length},byType,byFinance,loans:mapped}});
 }
 
 export async function operationalReport(_req:Request,res:Response){
+ await ensureDemoData();
  const [customers,loans,openFollowUps,inventory,sales,expenses]=await Promise.all([
-  Customer.countDocuments(),
-  Loan.find({}, {loanType:1,status:1,requiredAmount:1,approvedAmount:1,commission:1,financeCompany:1,createdAt:1}),
-  LoanFollowUp.find({status:"OPEN"}).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).sort({followUpDate:1}),
-  Car.find({status:{$in:["AVAILABLE","RESERVED"]}},{vehicleId:1,registrationNumber:1,make:1,model:1,purchasePrice:1,status:1,purchaseDate:1}).sort({createdAt:-1}),
-  CarSale.find({}).populate("carId","vehicleId registrationNumber make model").populate("buyerId","customerId name").sort({saleDate:-1}),
-  CarExpense.find({}).sort({date:-1})
+  prisma.customer.count(),
+  prisma.loan.findMany({select:{loanType:true,status:true,requiredAmount:true,approvedAmount:true,commission:true,financeCompany:true,createdAt:true}}),
+  prisma.loanFollowUp.findMany({
+   where:{status:"OPEN"},
+   orderBy:{followUpDate:"asc"},
+   include:{loan:{include:{customer:{select:{id:true,customerId:true,name:true,mobile:true}}}}}
+  }),
+  prisma.car.findMany({
+   where:{status:{in:[...inventoryStatuses]}},
+   orderBy:{createdAt:"desc"},
+   select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true,status:true,purchaseDate:true}
+  }),
+  prisma.carSale.findMany({
+   orderBy:{saleDate:"desc"},
+   include:{
+    car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true}},
+    buyer:{select:{id:true,customerId:true,name:true,mobile:true}}
+   }
+  }),
+  prisma.carExpense.findMany({orderBy:{date:"desc"}})
  ]);
+
  const status:any={},types:any={},finance:any={};
- for(const l of loans){status[l.status]=(status[l.status]||0)+1;types[l.loanType]=(types[l.loanType]||0)+1;const f=l.financeCompany||"Unassigned";finance[f]=(finance[f]||0)+(l.commission||0);}
- const salesProfit=sales.reduce((s,x)=>s+x.profit,0), expensesTotal=expenses.reduce((s,x)=>s+x.amount,0);
- res.json({success:true,data:{customers,loanSummary:{count:loans.length,byStatus:status,byType:types,commissionByFinance:finance},openFollowUps,inventory,sales:{count:sales.length,profit:salesProfit},carExpenses:{count:expenses.length,total:expensesTotal}}});
+ for(const l of loans){
+  status[l.status]=(status[l.status]||0)+1;
+  types[l.loanType]=(types[l.loanType]||0)+1;
+  const f=l.financeCompany||"Unassigned";
+  finance[f]=(finance[f]||0)+Number(l.commission||0);
+ }
+ const formattedFollowUps=openFollowUps.map((row:any)=>({
+  ...row,
+  _id:row.id,
+  loanId:row.loan?{...row.loan,_id:row.loan.id,customerId:row.loan.customer?{...row.loan.customer,_id:row.loan.customer.id}:row.loan.customerId}:row.loanId
+ }));
+ const formattedInventory=inventory.map((row:any)=>({...row,_id:row.id}));
+ const formattedSales=sales.map((row:any)=>({
+  ...row,
+  _id:row.id,
+  carId:row.car?{...row.car,_id:row.car.id}:row.carId,
+  buyerId:row.buyer?{...row.buyer,_id:row.buyer.id}:row.buyerId
+ }));
+ const salesProfit=formattedSales.reduce((sum:number,x:any)=>sum+Number(x.profit||0),0);
+ const expensesTotal=expenses.reduce((sum:number,x:any)=>sum+Number(x.amount||0),0);
+
+ return res.json({
+  success:true,
+  data:{
+   customers,
+   loanSummary:{count:loans.length,byStatus:status,byType:types,commissionByFinance:finance},
+   openFollowUps:formattedFollowUps,
+   inventory:formattedInventory,
+   sales:{count:formattedSales.length,profit:salesProfit},
+   carExpenses:{count:expenses.length,total:expensesTotal}
+  }
+ });
 }
