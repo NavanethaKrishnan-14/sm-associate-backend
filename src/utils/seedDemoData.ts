@@ -32,11 +32,21 @@ export async function clearDemoData() {
   });
 
   await prisma.financeEnquiry.deleteMany({
-    where: { enquiryId: { startsWith: "ENQ-900" } }
+    where: {
+      AND: [
+        { enquiryId: { startsWith: "ENQ-9" } },
+        { notes: { contains: DEMO } }
+      ]
+    }
   });
 
   await prisma.carSale.deleteMany({
-    where: { saleId: { startsWith: "SALE-900" } }
+    where: {
+      AND: [
+        { saleId: { startsWith: "SALE-9" } },
+        { notes: { contains: DEMO } }
+      ]
+    }
   });
 
   await prisma.carExpense.deleteMany({
@@ -49,15 +59,30 @@ export async function clearDemoData() {
   });
 
   await prisma.car.deleteMany({
-    where: { vehicleId: { startsWith: "CAR-900" } }
+    where: {
+      AND: [
+        { vehicleId: { startsWith: "CAR-9" } },
+        { notes: { contains: DEMO } }
+      ]
+    }
   });
 
   await prisma.loan.deleteMany({
-    where: { loanId: { startsWith: "LN-900" } }
+    where: {
+      AND: [
+        { loanId: { startsWith: "LN-9" } },
+        { notes: { contains: DEMO } }
+      ]
+    }
   });
 
   await prisma.customer.deleteMany({
-    where: { customerId: { startsWith: "CUS-900" } }
+    where: {
+      AND: [
+        { customerId: { startsWith: "CUS-9" } },
+        { notes: { contains: DEMO } }
+      ]
+    }
   });
 }
 
@@ -73,13 +98,13 @@ export async function seedDemoData() {
   }
 
   const customers = [
-    { customerId: "CUS-90001", name: "Arun Kumar", mobile: "9000000001", email: "demo.customer@smassociate.test", city: "Tirunelveli", occupation: "Business Owner" },
-    { customerId: "CUS-90002", name: "Priya Raj", mobile: "9000000002", email: "demo.priya@smassociate.test", city: "Tirunelveli", occupation: "IT Professional" },
-    { customerId: "CUS-90003", name: "Mohamed Faizal", mobile: "9000000003", email: "demo.faizal@smassociate.test", city: "Tirunelveli", occupation: "Trader" },
-    { customerId: "CUS-90004", name: "Kavitha S", mobile: "9000000004", email: "demo.kavitha@smassociate.test", city: "Nagercoil", occupation: "Teacher" },
-    { customerId: "CUS-90005", name: "Suresh B", mobile: "9000000005", email: "demo.suresh@smassociate.test", city: "Tuticorin", occupation: "Engineer" },
-    { customerId: "CUS-90006", name: "Meena Devi", mobile: "9000000006", email: "demo.meena@smassociate.test", city: "Tirunelveli", occupation: "Retailer" },
-    { customerId: "CUS-90007", name: "Ramesh Kumar", mobile: "9000000007", email: "demo.ramesh@smassociate.test", city: "Nagercoil", occupation: "Self Employed" }
+    { customerId: "CUS-901", name: "Arun Kumar", mobile: "9000000001", email: "demo.customer@smassociate.test", city: "Tirunelveli", occupation: "Business Owner" },
+    { customerId: "CUS-902", name: "Priya Raj", mobile: "9000000002", email: "demo.priya@smassociate.test", city: "Tirunelveli", occupation: "IT Professional" },
+    { customerId: "CUS-903", name: "Mohamed Faizal", mobile: "9000000003", email: "demo.faizal@smassociate.test", city: "Tirunelveli", occupation: "Trader" },
+    { customerId: "CUS-904", name: "Kavitha S", mobile: "9000000004", email: "demo.kavitha@smassociate.test", city: "Nagercoil", occupation: "Teacher" },
+    { customerId: "CUS-905", name: "Suresh B", mobile: "9000000005", email: "demo.suresh@smassociate.test", city: "Tuticorin", occupation: "Engineer" },
+    { customerId: "CUS-906", name: "Meena Devi", mobile: "9000000006", email: "demo.meena@smassociate.test", city: "Tirunelveli", occupation: "Retailer" },
+    { customerId: "CUS-907", name: "Ramesh Kumar", mobile: "9000000007", email: "demo.ramesh@smassociate.test", city: "Nagercoil", occupation: "Self Employed" }
   ];
 
   const customerById = new Map<string, { id: string }>();
@@ -93,14 +118,14 @@ export async function seedDemoData() {
   }
 
   const loanSeed = [
-    ["LN-90001", "CUS-90001", "Home Loan", 4200000, 4000000, "HDFC Bank", "APPROVED", 42000, "2026-09-18", null],
-    ["LN-90002", "CUS-90002", "Car Loan", 850000, 800000, "ICICI Bank", "DISBURSED", 12500, "2026-08-22", "2026-09-10"],
-    ["LN-90003", "CUS-90003", "Business Loan", 2500000, null, "Axis Bank", "UNDER_REVIEW", 0, "2026-09-28", null],
-    ["LN-90004", "CUS-90004", "Personal Loan", 500000, null, "Bajaj Finance", "ENTERED", 0, "2026-10-02", null],
-    ["LN-90005", "CUS-90005", "Home Loan", 3200000, 3000000, "SBI", "CLOSED", 30000, "2026-07-12", "2026-08-02"],
-    ["LN-90006", "CUS-90006", "Car Loan", 700000, null, "HDFC Bank", "SUBMITTED", 0, "2026-09-30", null],
-    ["LN-90007", "CUS-90007", "Business Loan", 1800000, null, "Kotak Mahindra Bank", "REJECTED", 0, "2026-08-30", null],
-    ["LN-90008", "CUS-90001", "Personal Loan", 400000, null, "Tata Capital", "DOCUMENTS_PENDING", 0, "2026-10-01", null]
+    ["LN-901", "CUS-901", "Home Loan", 4200000, 4000000, "HDFC Bank", "APPROVED", 42000, "2026-09-18", null],
+    ["LN-902", "CUS-902", "Car Loan", 850000, 800000, "ICICI Bank", "DISBURSED", 12500, "2026-08-22", "2026-09-10"],
+    ["LN-903", "CUS-903", "Business Loan", 2500000, null, "Axis Bank", "UNDER_REVIEW", 0, "2026-09-28", null],
+    ["LN-904", "CUS-904", "Personal Loan", 500000, null, "Bajaj Finance", "ENTERED", 0, "2026-10-02", null],
+    ["LN-905", "CUS-905", "Home Loan", 3200000, 3000000, "SBI", "CLOSED", 30000, "2026-07-12", "2026-08-02"],
+    ["LN-906", "CUS-906", "Car Loan", 700000, null, "HDFC Bank", "SUBMITTED", 0, "2026-09-30", null],
+    ["LN-907", "CUS-907", "Business Loan", 1800000, null, "Kotak Mahindra Bank", "REJECTED", 0, "2026-08-30", null],
+    ["LN-908", "CUS-901", "Personal Loan", 400000, null, "Tata Capital", "DOCUMENTS_PENDING", 0, "2026-10-01", null]
   ] as const;
 
   const loanById = new Map<string, { id: string }>();
@@ -141,11 +166,11 @@ export async function seedDemoData() {
   await prisma.loanFollowUp.deleteMany({ where: { note: { contains: DEMO } } });
 
   const followUps = [
-    ["LN-90001", "2026-10-04", "2026-10-07", "Collect final property documents - DEMO", "OPEN"],
-    ["LN-90003", "2026-10-03", "2026-10-06", "Check bank review status - DEMO", "OPEN"],
-    ["LN-90004", "2026-10-08", null, "Call customer for documents - DEMO", "OPEN"],
-    ["LN-90006", "2026-10-05", null, "Verify submitted documents - DEMO", "OPEN"],
-    ["LN-90007", "2026-09-25", null, "Explain rejection and discuss alternatives - DEMO", "COMPLETED"]
+    ["LN-901", "2026-10-04", "2026-10-07", "Collect final property documents - DEMO", "OPEN"],
+    ["LN-903", "2026-10-03", "2026-10-06", "Check bank review status - DEMO", "OPEN"],
+    ["LN-904", "2026-10-08", null, "Call customer for documents - DEMO", "OPEN"],
+    ["LN-906", "2026-10-05", null, "Verify submitted documents - DEMO", "OPEN"],
+    ["LN-907", "2026-09-25", null, "Explain rejection and discuss alternatives - DEMO", "COMPLETED"]
   ] as const;
 
   for (const [loanId, followUpDate, nextFollowUpDate, note, status] of followUps) {
@@ -162,14 +187,14 @@ export async function seedDemoData() {
   }
 
   const enquirySeed = [
-    ["ENQ-90001", "CUS-90001", "DSA_FINANCE", null, 4200000, "IN_PROGRESS", "2026-10-07", "DSA finance requirement - DEMO"],
-    ["ENQ-90002", "CUS-90001", "HOME_LOAN", "HDFC Bank", 4200000, "IN_PROGRESS", "2026-10-07", "Home loan enquiry - DEMO"],
-    ["ENQ-90003", "CUS-90002", "CAR_LOAN", "ICICI Bank", 850000, "COMPLETED", null, "Car loan enquiry - DEMO"],
-    ["ENQ-90004", "CUS-90003", "BUSINESS_LOAN", "Axis Bank", 2500000, "IN_PROGRESS", "2026-10-06", "Business loan enquiry - DEMO"],
-    ["ENQ-90005", "CUS-90004", "PERSONAL_LOAN", null, 500000, "NEW", null, "Personal loan enquiry - DEMO"],
-    ["ENQ-90006", "CUS-90005", "INSURANCE_RENEWAL", null, null, "COMPLETED", null, "Vehicle insurance renewal - DEMO"],
-    ["ENQ-90007", "CUS-90006", "GOLD_RESALE", null, null, "NEW", "2026-10-09", "Gold resale enquiry - DEMO"],
-    ["ENQ-90008", "CUS-90007", "GOLD_RESALE", null, null, "CANCELLED", null, "Demo cancelled gold enquiry - DEMO"]
+    ["ENQ-901", "CUS-901", "DSA_FINANCE", null, 4200000, "IN_PROGRESS", "2026-10-07", "DSA finance requirement - DEMO"],
+    ["ENQ-902", "CUS-901", "HOME_LOAN", "HDFC Bank", 4200000, "IN_PROGRESS", "2026-10-07", "Home loan enquiry - DEMO"],
+    ["ENQ-903", "CUS-902", "CAR_LOAN", "ICICI Bank", 850000, "COMPLETED", null, "Car loan enquiry - DEMO"],
+    ["ENQ-904", "CUS-903", "BUSINESS_LOAN", "Axis Bank", 2500000, "IN_PROGRESS", "2026-10-06", "Business loan enquiry - DEMO"],
+    ["ENQ-905", "CUS-904", "PERSONAL_LOAN", null, 500000, "NEW", null, "Personal loan enquiry - DEMO"],
+    ["ENQ-906", "CUS-905", "INSURANCE_RENEWAL", null, null, "COMPLETED", null, "Vehicle insurance renewal - DEMO"],
+    ["ENQ-907", "CUS-906", "GOLD_RESALE", null, null, "NEW", "2026-10-09", "Gold resale enquiry - DEMO"],
+    ["ENQ-908", "CUS-907", "GOLD_RESALE", null, null, "CANCELLED", null, "Demo cancelled gold enquiry - DEMO"]
   ] as const;
 
   for (const [enquiryId, customerId, serviceCode, financeCompany, requiredAmount, status, followUpDate, notes] of enquirySeed) {
@@ -200,9 +225,9 @@ export async function seedDemoData() {
   }
 
   const cars = [
-    ["CAR-90001", "CUS-90003", "TN72AB9001", "Hyundai", "Creta SX", 2021, 1, 42000, "Diesel", 1180000, "AVAILABLE"],
-    ["CAR-90002", "CUS-90005", "TN69EF9002", "Kia", "Seltos HTK", 2022, 1, 36000, "Petrol", 1250000, "RESERVED"],
-    ["CAR-90003", "CUS-90001", "TN72CD9003", "Maruti Suzuki", "Swift VXi", 2022, 1, 31000, "Petrol", 720000, "SOLD"]
+    ["CAR-901", "CUS-903", "TN72AB9001", "Hyundai", "Creta SX", 2021, 1, 42000, "Diesel", 1180000, "AVAILABLE"],
+    ["CAR-902", "CUS-905", "TN69EF9002", "Kia", "Seltos HTK", 2022, 1, 36000, "Petrol", 1250000, "RESERVED"],
+    ["CAR-903", "CUS-901", "TN72CD9003", "Maruti Suzuki", "Swift VXi", 2022, 1, 31000, "Petrol", 720000, "SOLD"]
   ] as const;
 
   const carById = new Map<string, { id: string }>();
@@ -245,11 +270,11 @@ export async function seedDemoData() {
   });
 
   const expenses = [
-    ["CAR-90001", "Service", 18000, "Periodic service - DEMO"],
-    ["CAR-90001", "Detailing", 6500, "Vehicle detailing - DEMO"],
-    ["CAR-90002", "Tyres", 24000, "Tyre replacement - DEMO"],
-    ["CAR-90003", "Repair", 12000, "Brake and suspension work - DEMO"],
-    ["CAR-90003", "Detailing", 5000, "Final detailing - DEMO"]
+    ["CAR-901", "Service", 18000, "Periodic service - DEMO"],
+    ["CAR-901", "Detailing", 6500, "Vehicle detailing - DEMO"],
+    ["CAR-902", "Tyres", 24000, "Tyre replacement - DEMO"],
+    ["CAR-903", "Repair", 12000, "Brake and suspension work - DEMO"],
+    ["CAR-903", "Detailing", 5000, "Final detailing - DEMO"]
   ] as const;
 
   for (const [vehicleId, category, amount, description] of expenses) {
@@ -264,10 +289,10 @@ export async function seedDemoData() {
   }
 
   await prisma.carSale.upsert({
-    where: { saleId: "SALE-90001" },
+    where: { saleId: "SALE-901" },
     update: {
-      carId: carById.get("CAR-90003")!.id,
-      buyerId: customerById.get("CUS-90004")!.id,
+      carId: carById.get("CAR-903")!.id,
+      buyerId: customerById.get("CUS-904")!.id,
       sellingPrice: 805000,
       sellingExpenses: 7500,
       totalInvestment: 737000,
@@ -276,9 +301,9 @@ export async function seedDemoData() {
       notes: DEMO
     },
     create: {
-      saleId: "SALE-90001",
-      carId: carById.get("CAR-90003")!.id,
-      buyerId: customerById.get("CUS-90004")!.id,
+      saleId: "SALE-901",
+      carId: carById.get("CAR-903")!.id,
+      buyerId: customerById.get("CUS-904")!.id,
       sellingPrice: 805000,
       sellingExpenses: 7500,
       totalInvestment: 737000,
