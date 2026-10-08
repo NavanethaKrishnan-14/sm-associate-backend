@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/db";
 import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
 import { Loan } from "../models/Loan";
@@ -81,4 +82,16 @@ export async function listDocuments(_req:Request,res:Response){
 
   documents.sort((a,b)=>new Date(b.uploadedAt||0).getTime()-new Date(a.uploadedAt||0).getTime());
   res.json({success:true,data:documents});
+}
+
+
+export async function downloadDocumentFile(req:Request,res:Response){
+  const publicId=String(req.params.publicId||"").trim();
+  if(!publicId)return res.status(400).json({success:false,message:"Document id is required."});
+  const document=await prisma.document.findUnique({where:{publicId}});
+  if(!document)return res.status(404).json({success:false,message:"Document not found."});
+  res.setHeader("Content-Type",document.mimeType||"application/octet-stream");
+  res.setHeader("Content-Length",String(document.size));
+  res.setHeader("Content-Disposition",'attachment; filename="'+String(document.originalName||"document").replace(/["\\]/g,"_")+'"');
+  return res.send(Buffer.from(document.data));
 }
