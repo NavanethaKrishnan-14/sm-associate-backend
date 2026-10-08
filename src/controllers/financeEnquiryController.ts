@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
-import { DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { FinanceEnquiry, ENQUIRY_STATUSES } from "../models/FinanceEnquiry";
 import { Customer } from "../models/Customer";
