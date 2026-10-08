@@ -21,7 +21,7 @@ export async function login(req:Request,res:Response){
   // Production-only one-time demo bootstrap. This runs after the admin has
   // been synchronized, so it can seed the same PostgreSQL database used by
   // the Vercel API without requiring a separate CLI session.
-  if (process.env.VERCEL === "1") {
+  if (process.env.NODE_ENV === "production") {
     try {
       const { seedDemoDataOnce } = await import("../utils/seedDemoData");
       const result = await seedDemoDataOnce("sm-associate-demo-seed-20261008");
