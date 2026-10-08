@@ -9,6 +9,7 @@ import reportRoutes from "./routes/reportRoutes";
 import financeServiceRoutes from "./routes/financeServiceRoutes";
 import financeEnquiryRoutes from "./routes/financeEnquiryRoutes";
 import documentRoutes from "./routes/documentRoutes";
+import dashboardNoteRoutes from "./routes/dashboardNoteRoutes";
 import { requireAuth } from "./middleware/auth";
 import { setupSwagger } from "./config/swagger";
 
@@ -92,6 +93,7 @@ app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/finance-services", financeServiceRoutes);
 app.use("/api/v1/finance-enquiries", financeEnquiryRoutes);
 app.use("/api/v1/documents", documentRoutes);
+app.use("/api/v1/dashboard/notes", dashboardNoteRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({
