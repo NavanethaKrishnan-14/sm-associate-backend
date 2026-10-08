@@ -1,6 +1,6 @@
 import "dotenv/config";
-import mongoose from "mongoose";
-import { connectDatabase } from "../src/config/db";
+
+import { connectDatabase, disconnectDatabase } from "../src/config/db";
 import { User } from "../src/models/User";
 import { Customer } from "../src/models/Customer";
 import { Loan } from "../src/models/Loan";
@@ -22,7 +22,7 @@ async function seed() {
 
   if (await Customer.exists({ email: "demo.customer@smassociate.test" })) {
     console.log("Complete demo data already exists.");
-    await mongoose.disconnect();
+    await disconnectDatabase();
     return;
   }
 
@@ -110,11 +110,11 @@ async function seed() {
 
   console.log("COMPLETE DEMO DATA SEEDED");
   console.log("Services: 7 | Customers: 7 | Loans: 8 | Follow-ups: 5 | Enquiries: 8 | Cars: 3 | Expenses: 5 | Sales: 1");
-  await mongoose.disconnect();
+  await disconnectDatabase();
 }
 
 seed().catch(async error => {
   console.error("Demo seed failed:",error);
-  await mongoose.disconnect();
+  await disconnectDatabase();
   process.exit(1);
 });
