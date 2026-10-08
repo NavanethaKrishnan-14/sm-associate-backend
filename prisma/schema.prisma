@@ -209,4 +209,15 @@ model LoanFollowUp {
   creator          User?          @relation("FollowUpCreatedBy", fields: [createdBy], references: [id])
 }
 
-@@index([email])
+
+model Document {
+  id           String   @id @default(cuid())
+  publicId     String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  data         Bytes
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
