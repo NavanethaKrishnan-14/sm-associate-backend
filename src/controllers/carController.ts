@@ -5,7 +5,7 @@ import { CarSale } from "../models/CarSale";
 import { Customer } from "../models/Customer";
 import { nextId } from "../utils/sequence";
 import { resolveCarId, resolveCustomerId } from "../utils/resolveIds";
-import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
+import { deleteStoredDocument, uploadBufferToPostgres } from "../utils/documentStorage";
 
 export async function updateCarDocuments(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
@@ -28,10 +28,10 @@ export async function updateCarDocuments(req:Request,res:Response){
  next.uploads=current.uploads||{};
  next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
  for(const key of ["carBook","carInsurance","agreement"]){
-  if(!next[key]&&next.uploads?.[key]){await deleteCloudinaryAsset(next.uploads[key]?.publicId||next.uploads[key]?.storedName,next.uploads[key]?.resourceType);delete next.uploads[key];}
+  if(!next[key]&&next.uploads?.[key]){await deleteStoredDocument(next.uploads[key]?.publicId||next.uploads[key]?.storedName,next.uploads[key]?.resourceType);delete next.uploads[key];}
  }
  next.customUploads=next.customUploads.filter((item:any)=>customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
- await Promise.all((Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase())).map((item:any)=>deleteCloudinaryAsset(item?.publicId||item?.storedName,item?.resourceType)));
+ await Promise.all((Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase())).map((item:any)=>deleteStoredDocument(item?.publicId||item?.storedName,item?.resourceType)));
  (car as any).documents=next;
  await car.save();
  const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
@@ -50,12 +50,12 @@ export async function uploadCarDocument(req:Request,res:Response){
  const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
  if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  try{
-  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/cars",`${car.vehicleId||car._id}-${key==="custom"?`custom-${documentName}`:key}`);
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/cars",`${car.vehicleId||car._id}-${key==="custom"?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   if(fixedKeys.includes(key)){
    const previous:any=(car as any).documents?.uploads?.[key];
    await Car.findByIdAndUpdate(car._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
-   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+   if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }else{
    const current:any=(car as any).documents||{};
    const customNames=Array.isArray(current.customDocuments)?current.customDocuments:[];
@@ -65,7 +65,7 @@ export async function uploadCarDocument(req:Request,res:Response){
    const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    nextUploads.push({name:documentName,...fileMeta});
    await Car.findByIdAndUpdate(car._id,{$set:{"documents.customDocuments":nextNames,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
-   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+   if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }
   const updated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
   return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:updated});
@@ -317,19 +317,19 @@ export async function uploadSaleDocument(req:Request,res:Response){
   if(!customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase()))return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
  }
  try{
-  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/car-sales",`${sale.saleId||sale._id}-${key==="custom"?`custom-${documentName}`:key}`);
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/car-sales",`${sale.saleId||sale._id}-${key==="custom"?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   if(fixedKeys.includes(key)){
    const previous:any=current.uploads?.[key];
    await CarSale.findByIdAndUpdate(sale._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
-   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+   if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }else{
    const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
    const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
    const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    nextUploads.push({name:documentName,...fileMeta});
    await CarSale.findByIdAndUpdate(sale._id,{$set:{"documents.customUploads":nextUploads}},{new:true,runValidators:true});
-   if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+   if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }
   const updated=await CarSale.findById(sale._id).populate("buyerId","customerId name mobile");
   return res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
