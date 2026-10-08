@@ -3,37 +3,12 @@ import app from "../src/app";
 
 let initialized: Promise<void> | null = null;
 
-const AUTO_DEMO_SEED_MARKER = "sm-associate-demo-seed-20261008";
-
 async function initialize() {
-  const { connectDatabase, prisma } = await import("../src/config/db");
+  const { connectDatabase } = await import("../src/config/db");
   const { bootstrapAdmin } = await import("../src/utils/bootstrapAdmin");
 
   await connectDatabase();
   await bootstrapAdmin();
-
-  // One-time production demo-data bootstrap for the current deployment.
-  // A unique database marker makes this safe across serverless cold starts.
-  let markerClaimed = false;
-  try {
-    await prisma.counter.create({
-      data: { name: AUTO_DEMO_SEED_MARKER, value: 1 }
-    });
-    markerClaimed = true;
-
-    const { seedDemoData } = await import("../src/utils/seedDemoData");
-    const result = await seedDemoData();
-    console.log("Automatic demo seed completed:", result);
-  } catch (error: any) {
-    if (error?.code !== "P2002") {
-      if (markerClaimed) {
-        await prisma.counter.delete({
-          where: { name: AUTO_DEMO_SEED_MARKER }
-        }).catch(() => undefined);
-      }
-      throw error;
-    }
-  }
 }
 
 function normalizePath(value: unknown): string {
