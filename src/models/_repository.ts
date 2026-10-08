@@ -86,7 +86,10 @@ function buildInclude(model:ModelName,pops:any[]):any{
     const rel=relationMap[model]?.[path];
     if(!rel)continue;
     const nested=typeof p==="object"&&p.populate?[p.populate]:[];
-    include[rel]=nested.length?{include:buildInclude(relationModel(model,path),nested)}:true;
+    const selectFields=typeof p==="object"&&p.select?String(p.select).split(/\\s+/).filter(Boolean):[];
+    const select:any=selectFields.length?Object.fromEntries(selectFields.map((f:string)=>[f.replace(/^[-+]/,""),!f.startsWith("-")])):undefined;
+    if(nested.length) include[rel]={include:buildInclude(relationModel(model,path),nested),...(select?{select}:{})};
+    else include[rel]=select?{select}:true;
   }
   return include;
 }
