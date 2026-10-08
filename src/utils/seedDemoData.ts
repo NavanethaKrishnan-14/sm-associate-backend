@@ -1,6 +1,7 @@
 import { prisma } from "../config/db";
 
 const DEMO = "DEMO DATA";
+export const DEMO_SEED_MARKER = "sm-associate-demo-seed-20261008-v2";
 
 const serviceData = [
   ["DSA_FINANCE", "DSA Finance", "DSA", null, "DSA finance sourcing.", 1],
@@ -27,65 +28,78 @@ async function requireAdmin() {
 }
 
 export async function clearDemoData() {
+  // Demo IDs are reserved for the test dataset. This cleanup removes only
+  // those known demo records and their dependent records, never real IDs.
+  const demoCustomerIds = ["CUS-901","CUS-902","CUS-903","CUS-904","CUS-905","CUS-906","CUS-907"];
+  const demoLoanIds = [
+    "LOAN-901","LOAN-902","LOAN-903","LOAN-904",
+    "LOAN-905","LOAN-906","LOAN-907","LOAN-908",
+    "LN-901","LN-902","LN-903","LN-904",
+    "LN-905","LN-906","LN-907","LN-908"
+  ];
+  const demoEnquiryIds = ["ENQ-901","ENQ-902","ENQ-903","ENQ-904","ENQ-905","ENQ-906","ENQ-907","ENQ-908"];
+  const demoCarIds = ["CAR-901","CAR-902","CAR-903"];
+  const demoSaleIds = ["SALE-901"];
+
   await prisma.loanFollowUp.deleteMany({
-    where: { note: { contains: DEMO } }
+    where:{
+      OR:[
+        {note:{contains:DEMO}},
+        {loan:{loanId:{in:demoLoanIds}}}
+      ]
+    }
   });
 
   await prisma.financeEnquiry.deleteMany({
-    where: {
-      AND: [
-        { enquiryId: { startsWith: "ENQ-9" } },
-        { notes: { contains: DEMO } }
+    where:{
+      OR:[
+        {enquiryId:{in:demoEnquiryIds}},
+        {notes:{contains:DEMO}}
       ]
     }
   });
 
   await prisma.carSale.deleteMany({
-    where: {
-      AND: [
-        { saleId: { startsWith: "SALE-9" } },
-        { notes: { contains: DEMO } }
+    where:{
+      OR:[
+        {saleId:{in:demoSaleIds}},
+        {notes:{contains:DEMO}}
       ]
     }
   });
 
   await prisma.carExpense.deleteMany({
-    where: {
-      OR: [
-        { description: { contains: DEMO } },
-        { car: { notes: { contains: DEMO } } }
+    where:{
+      OR:[
+        {description:{contains:DEMO}},
+        {car:{vehicleId:{in:demoCarIds}}}
       ]
     }
   });
 
   await prisma.car.deleteMany({
-    where: {
-      AND: [
-        { vehicleId: { startsWith: "CAR-9" } },
-        { notes: { contains: DEMO } }
+    where:{
+      OR:[
+        {vehicleId:{in:demoCarIds}},
+        {notes:{contains:DEMO}}
       ]
     }
   });
 
   await prisma.loan.deleteMany({
-    where: {
-      AND: [
-        {
-          OR: [
-            { loanId: { startsWith: "LN-9" } },
-            { loanId: { startsWith: "LOAN-9" } }
-          ]
-        },
-        { notes: { contains: DEMO } }
+    where:{
+      OR:[
+        {loanId:{in:demoLoanIds}},
+        {notes:{contains:DEMO}}
       ]
     }
   });
 
   await prisma.customer.deleteMany({
-    where: {
-      AND: [
-        { customerId: { startsWith: "CUS-9" } },
-        { notes: { contains: DEMO } }
+    where:{
+      OR:[
+        {customerId:{in:demoCustomerIds}},
+        {notes:{contains:DEMO}}
       ]
     }
   });
