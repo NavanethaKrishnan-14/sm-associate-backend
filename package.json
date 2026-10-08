@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:push": "prisma db push",
-    "vercel-build": "prisma generate && prisma migrate deploy && tsc",
+    "vercel-build": "prisma generate && node scripts/vercel-migrate.cjs && tsc",
     "seed:demo:clear": "tsx scripts/seed-demo-data.ts clear"
   },
   "dependencies": {
