@@ -12,15 +12,19 @@ copy .env.example .env
 Set `DATABASE_URL` in `.env` to your PostgreSQL database:
 
 ```env
-DATABASE_URL=postgresql://postgres:<PASSWORD>@localhost:5432/sm_associate?schema=public
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
 ```
 
-Create/update the PostgreSQL schema:
+Use your local PostgreSQL URL for development and your hosted production PostgreSQL URL in Vercel. Never use `localhost` or `127.0.0.1` for the Vercel production database.
+
+Apply the PostgreSQL schema locally or in production:
 
 ```bash
 npm run prisma:generate
-npm run prisma:push
+npm run prisma:migrate
 ```
+
+`prisma:migrate` applies the checked-in production migrations.
 
 Start the API:
 
@@ -36,11 +40,9 @@ Swagger: http://localhost:5000/api-docs
 
 ## Storage
 
-MongoDB/Mongoose has been removed.
+Uploaded documents are stored directly in PostgreSQL using the `bytea`/`Bytes` document storage table and can be downloaded through the backend document endpoint. Uploads are limited to 10 MB.
 
-Cloudinary has also been removed. Uploaded documents are stored directly in PostgreSQL using a `bytea` column and can be downloaded through the backend document endpoint. Uploads remain limited to 10 MB.
-
-For customer documents, use the multipart upload endpoint rather than a direct third-party upload.
+For customer documents, use the multipart upload endpoint.
 
 ## Authentication
 
