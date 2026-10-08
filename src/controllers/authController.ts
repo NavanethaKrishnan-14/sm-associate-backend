@@ -17,6 +17,20 @@ export async function login(req:Request,res:Response){
   const user=await prisma.user.findUnique({where:{email}});
   if(!user||!user.isActive||!(await comparePassword(password,user.passwordHash)))return res.status(401).json({success:false,message:"Invalid email or password."});
   const token=signToken({userId:user.id,role:user.role});
+
+  // Production-only one-time demo bootstrap. This runs after the admin has
+  // been synchronized, so it can seed the same PostgreSQL database used by
+  // the Vercel API without requiring a separate CLI session.
+  if (process.env.VERCEL === "1") {
+    try {
+      const { seedDemoDataOnce } = await import("../utils/seedDemoData");
+      const result = await seedDemoDataOnce("sm-associate-demo-seed-20261008");
+      if (result) console.log("Production demo data seeded:", result);
+    } catch (error) {
+      console.error("Production demo seed failed:", error);
+    }
+  }
+
   return res.status(200).json({success:true,message:"Login successful.",data:{token,accessToken:token,user:publicUser(user)}});
 }
 
