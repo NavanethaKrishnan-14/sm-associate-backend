@@ -143,7 +143,7 @@ export function makeModel(model:ModelName){
     static find(filter:any={}){return new Query(model,"find",filter);}
     static findOne(filter:any={}){return new Query(model,"findOne",filter);}
     static findById(id:any){return new Query(model,"findById",id);}
-    static async create(data:any){const r=await d.create({data:cleanData(data,model)});return new ModelInstance(model,alias(r,model)) as any;}
+    static async create(data:any){if(Array.isArray(data))return Promise.all(data.map((item:any)=>this.create(item)));const r=await d.create({data:cleanData(data,model)});return new ModelInstance(model,alias(r,model)) as any;}
     static async findByIdAndUpdate(id:any,update:any,_opts:any={}){const base=await d.findUnique({where:{id:String(id)}});if(!base)return null;const next:any={...base};const set=update?.$set||update||{};for(const [k,v] of Object.entries(set)){if(k.includes(".")){const root=k.split(".")[0];next[root]=next[root]&&typeof next[root]==="object"?next[root]:{};setPath(next,k,v);}else next[k]=v;}const r=await d.update({where:{id:String(id)},data:cleanData(next,model)});return new ModelInstance(model,alias(r,model)) as any;}
     static async countDocuments(filter:any={}){const rows=await d.findMany();return rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,filter)).length;}
     static async deleteMany(filter:any={}){const rows=await d.findMany();const ids=rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,filter)).map((r:any)=>r.id);if(ids.length)await d.deleteMany({where:{id:{in:ids}}});return {deletedCount:ids.length};}
