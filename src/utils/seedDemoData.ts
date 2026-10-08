@@ -352,26 +352,58 @@ export async function seedDemoData() {
 }
 
 export async function seedDemoDataOnce(marker: string) {
-  let markerClaimed = false;
+  const expected = {
+    customers: 7,
+    loans: 8,
+    enquiries: 8,
+    cars: 3,
+    sales: 1
+  };
+
+  const [customers, loans, enquiries, cars, sales] = await Promise.all([
+    prisma.customer.count({ where: { customerId: { startsWith: "CUS-9" }, notes: DEMO } }),
+    prisma.loan.count({
+      where: {
+        OR: [
+          { loanId: { startsWith: "LOAN-9" }, notes: DEMO },
+          { loanId: { startsWith: "LN-9" }, notes: DEMO }
+        ]
+      }
+    }),
+    prisma.financeEnquiry.count({ where: { enquiryId: { startsWith: "ENQ-9" }, notes: DEMO } }),
+    prisma.car.count({ where: { vehicleId: { startsWith: "CAR-9" }, notes: DEMO } }),
+    prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } })
+  ]);
+
+  const complete =
+    customers >= expected.customers &&
+    loans >= expected.loans &&
+    enquiries >= expected.enquiries &&
+    cars >= expected.cars &&
+    sales >= expected.sales;
+
+  if (complete) {
+    const existingMarker = await prisma.counter.findUnique({ where: { name: marker } });
+    if (!existingMarker) {
+      await prisma.counter.create({ data: { name: marker, value: 1 } });
+    }
+    return null;
+  }
+
+  await prisma.counter.deleteMany({ where: { name: marker } });
 
   try {
-    await prisma.counter.create({
-      data: { name: marker, value: 1 }
+    const result = await seedDemoData();
+
+    await prisma.counter.upsert({
+      where: { name: marker },
+      create: { name: marker, value: 1 },
+      update: { value: 1 }
     });
-    markerClaimed = true;
 
-    return await seedDemoData();
-  } catch (error: any) {
-    if (error?.code === "P2002") {
-      return null;
-    }
-
-    if (markerClaimed) {
-      await prisma.counter.delete({
-        where: { name: marker }
-      }).catch(() => undefined);
-    }
-
+    return result;
+  } catch (error) {
+    await prisma.counter.deleteMany({ where: { name: marker } });
     throw error;
   }
 }
