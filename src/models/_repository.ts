@@ -107,7 +107,7 @@ class Query<T=any> implements PromiseLike<T>{
     if(this.op==="findById")rows=await d.findMany({where:{id:String(this.arg)},...(Object.keys(include).length?{include}:{})});
     else if(this.op==="findOne")rows=await d.findMany({...(Object.keys(include).length?{include}:{})});
     else rows=await d.findMany({...(Object.keys(include).length?{include}:{})});
-    rows=rows.map(alias).filter((r:any)=>this.op==="findById"||matches(r,this.arg));
+    rows=rows.map((x:any)=>alias(x,model)).filter((r:any)=>this.op==="findById"||matches(r,this.arg));
     if(this.op==="findOne")rows=rows.slice(0,1);
     if(this.sortSpec)rows.sort((a,b)=>{for(const [k,dir] of Object.entries(this.sortSpec)){const av=getPath(a,k),bv=getPath(b,k);if(av===bv)continue;return (av>bv?1:-1)*(Number(dir)>0?1:-1);}return 0;});
     rows=rows.map(r=>this.project(r));
@@ -131,7 +131,7 @@ class ModelInstance{
   }
   get _id(){return this.data._id??this.data.id;}
   set _id(v:any){this.data._id=v;this.data.id=v;}
-  async save(){const id=String(this.data._id??this.data.id);const update:any={};for(const k of scalarMap[this.model]){if(k==="id"||k==="createdAt"||k==="updatedAt")continue;if(this.data[k]!==undefined)update[k]=this.data[k];}const r=await delegate(this.model).update({where:{id},data:update});Object.assign(this.data,alias(r));return this;}
+  async save(){const id=String(this.data._id??this.data.id);const update:any={};for(const k of scalarMap[this.model]){if(k==="id"||k==="createdAt"||k==="updatedAt")continue;if(this.data[k]!==undefined)update[k]=this.data[k];}const r=await delegate(this.model).update({where:{id},data:update});Object.assign(this.data,alias(r,model));return this;}
   async deleteOne(){return delegate(this.model).delete({where:{id:String(this.data._id??this.data.id)}});}
   markModified(_path:string){}
   toObject(){return {...this.data};}
@@ -143,12 +143,12 @@ export function makeModel(model:ModelName){
     static find(filter:any={}){return new Query(model,"find",filter);}
     static findOne(filter:any={}){return new Query(model,"findOne",filter);}
     static findById(id:any){return new Query(model,"findById",id);}
-    static async create(data:any){const r=await d.create({data:cleanData(data,model)});return new ModelInstance(model,alias(r)) as any;}
-    static async findByIdAndUpdate(id:any,update:any,_opts:any={}){const base=await d.findUnique({where:{id:String(id)}});if(!base)return null;const next:any={...base};const set=update?.$set||update||{};for(const [k,v] of Object.entries(set)){if(k.includes(".")){const root=k.split(".")[0];next[root]=next[root]&&typeof next[root]==="object"?next[root]:{};setPath(next,k,v);}else next[k]=v;}const r=await d.update({where:{id:String(id)},data:cleanData(next,model)});return new ModelInstance(model,alias(r)) as any;}
-    static async countDocuments(filter:any={}){const rows=await d.findMany();return rows.map(alias).filter((r:any)=>matches(r,filter)).length;}
-    static async deleteMany(filter:any={}){const rows=await d.findMany();const ids=rows.map(alias).filter((r:any)=>matches(r,filter)).map((r:any)=>r.id);if(ids.length)await d.deleteMany({where:{id:{in:ids}}});return {deletedCount:ids.length};}
+    static async create(data:any){const r=await d.create({data:cleanData(data,model)});return new ModelInstance(model,alias(r,model)) as any;}
+    static async findByIdAndUpdate(id:any,update:any,_opts:any={}){const base=await d.findUnique({where:{id:String(id)}});if(!base)return null;const next:any={...base};const set=update?.$set||update||{};for(const [k,v] of Object.entries(set)){if(k.includes(".")){const root=k.split(".")[0];next[root]=next[root]&&typeof next[root]==="object"?next[root]:{};setPath(next,k,v);}else next[k]=v;}const r=await d.update({where:{id:String(id)},data:cleanData(next,model)});return new ModelInstance(model,alias(r,model)) as any;}
+    static async countDocuments(filter:any={}){const rows=await d.findMany();return rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,filter)).length;}
+    static async deleteMany(filter:any={}){const rows=await d.findMany();const ids=rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,filter)).map((r:any)=>r.id);if(ids.length)await d.deleteMany({where:{id:{in:ids}}});return {deletedCount:ids.length};}
     static async exists(filter:any={}){return (await this.countDocuments(filter))>0;}
     static async bulkWrite(ops:any[]){for(const op of ops){const x=op.updateOne;if(!x)continue;const existing=await d.findUnique({where:{code:x.filter?.code}});if(existing){if(x.update?.$set)await d.update({where:{id:existing.id},data:cleanData(x.update.$set,model)});}else if(x.upsert)await d.create({data:cleanData(x.update?.$setOnInsert||x.update?.$set||x.filter,model)});}return {ok:1};}
-    static async aggregate(pipeline:any[]){let rows=await d.findMany();for(const stage of pipeline){if(stage.$match)rows=rows.map(alias).filter((r:any)=>matches(r,stage.$match));if(stage.$group){const idExpr=stage.$group._id;const groups=new Map<string,any>();for(const row of rows.map(alias)){const key=idExpr===null?null:(typeof idExpr==="string"?getPath(row,idExpr.replace(/^\$/,"")):null);const ks=String(key);let g=groups.get(ks);if(!g){g={_id:key};for(const [k,v] of Object.entries(stage.$group)){if(k!=="_id")g[k]=0;}groups.set(ks,g);}for(const [k,v] of Object.entries(stage.$group)){if(k==="_id")continue;const sum:any=(v as any).$sum;if(typeof sum==="number")g[k]+=sum;else if(typeof sum==="string")g[k]+=Number(getPath(row,sum.replace(/^\$/,""))||0);}}rows=[...groups.values()];}}return rows;}
+    static async aggregate(pipeline:any[]){let rows=await d.findMany();for(const stage of pipeline){if(stage.$match)rows=rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,stage.$match));if(stage.$group){const idExpr=stage.$group._id;const groups=new Map<string,any>();for(const row of rows.map((x:any)=>alias(x,model))){const key=idExpr===null?null:(typeof idExpr==="string"?getPath(row,idExpr.replace(/^\$/,"")):null);const ks=String(key);let g=groups.get(ks);if(!g){g={_id:key};for(const [k,v] of Object.entries(stage.$group)){if(k!=="_id")g[k]=0;}groups.set(ks,g);}for(const [k,v] of Object.entries(stage.$group)){if(k==="_id")continue;const sum:any=(v as any).$sum;if(typeof sum==="number")g[k]+=sum;else if(typeof sum==="string")g[k]+=Number(getPath(row,sum.replace(/^\$/,""))||0);}}rows=[...groups.values()];}}return rows;}
   };
 }
