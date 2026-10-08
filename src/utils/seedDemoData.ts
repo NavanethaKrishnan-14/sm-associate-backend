@@ -321,33 +321,22 @@ export async function seedDemoData() {
     }
   });
 
-  await Promise.all([
-    prisma.counter.upsert({
-      where: { name: "customer" },
-      create: { name: "customer", value: 907 },
-      update: { value: { increment: 0 } }
-    }),
-    prisma.counter.upsert({
-      where: { name: "loan" },
-      create: { name: "loan", value: 908 },
-      update: { value: { increment: 0 } }
-    }),
-    prisma.counter.upsert({
-      where: { name: "financeEnquiry" },
-      create: { name: "financeEnquiry", value: 908 },
-      update: { value: { increment: 0 } }
-    }),
-    prisma.counter.upsert({
-      where: { name: "car" },
-      create: { name: "car", value: 903 },
-      update: { value: { increment: 0 } }
-    }),
-    prisma.counter.upsert({
-      where: { name: "carSale" },
-      create: { name: "carSale", value: 901 },
-      update: { value: { increment: 0 } }
-    })
-  ]);
+  // Keep future generated IDs after the seeded range without lowering
+  // an already-higher production counter.
+  for (const [name, minimum] of [
+    ["customer", 907],
+    ["loan", 908],
+    ["financeEnquiry", 908],
+    ["car", 903],
+    ["carSale", 901]
+  ] as const) {
+    await prisma.$executeRaw`
+      UPDATE "Counter"
+      SET "value" = GREATEST("value", ${minimum}),
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "name" = ${name}
+    `;
+  }
 
   console.log("COMPLETE DEMO DATA SEEDED");
   return {
