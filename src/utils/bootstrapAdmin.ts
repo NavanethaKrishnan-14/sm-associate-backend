@@ -1,4 +1,4 @@
-import { User } from "../models/User";
+import { prisma } from "../config/db";
 import { comparePassword, hashPassword } from "./auth";
 
 export async function bootstrapAdmin() {
@@ -10,51 +10,37 @@ export async function bootstrapAdmin() {
     console.warn("ADMIN_EMAIL/ADMIN_PASSWORD not set; skipping admin bootstrap.");
     return;
   }
+  if (password.length < 8) throw new Error("ADMIN_PASSWORD must be at least 8 characters.");
 
-  if (password.length < 8) {
-    throw new Error("ADMIN_PASSWORD must be at least 8 characters.");
-  }
-
-  const existing = await User.findOne({ email }).select("+passwordHash");
+  const existing = await prisma.user.findUnique({ where: { email } });
 
   if (!existing) {
-    await User.create({
-      name,
-      email,
-      passwordHash: await hashPassword(password),
-      role: "ADMIN",
-      isActive: true
+    await prisma.user.create({
+      data: { name, email, passwordHash: await hashPassword(password), role: "ADMIN", isActive: true }
     });
-    console.log(`Initial admin created: ${email}`);
+    console.log("Initial admin created: " + email);
     return;
   }
 
-  let changed = false;
-
-  if (existing.name !== name) {
-    existing.name = name;
-    changed = true;
-  }
-
-  if (existing.role !== "ADMIN") {
-    existing.role = "ADMIN";
-    changed = true;
-  }
-
-  if (!existing.isActive) {
-    existing.isActive = true;
-    changed = true;
-  }
-
-  if (!(await comparePassword(password, existing.passwordHash))) {
-    existing.passwordHash = await hashPassword(password);
-    changed = true;
-  }
+  const passwordMatches = await comparePassword(password, existing.passwordHash);
+  const changed =
+    existing.name !== name ||
+    existing.role !== "ADMIN" ||
+    !existing.isActive ||
+    !passwordMatches;
 
   if (changed) {
-    await existing.save();
-    console.log(`Admin credentials synchronized: ${email}`);
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name,
+        role: "ADMIN",
+        isActive: true,
+        ...(passwordMatches ? {} : { passwordHash: await hashPassword(password) })
+      }
+    });
+    console.log("Admin credentials synchronized: " + email);
   } else {
-    console.log(`Admin already configured: ${email}`);
+    console.log("Admin already configured: " + email);
   }
 }
