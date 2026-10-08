@@ -57,11 +57,25 @@ function cleanData(data:any,model:ModelName){
   for(const [k,v] of Object.entries(data||{})){if(k==="_id")out.id=v;else if(allowed.has(k))out[k]=v;}
   return out;
 }
-function alias(record:any):any{
+function alias(record:any,model?:ModelName):any{
   if(!record)return record;
-  if(Array.isArray(record))return record.map(alias);
+  if(Array.isArray(record))return record.map(x=>alias(x,model));
   const out:any={...record};
   if(out.id!==undefined)out._id=out.id;
+  const reverse:any={
+    car:{seller:"sellerId"},
+    carExpense:{car:"carId"},
+    carSale:{car:"carId",buyer:"buyerId"},
+    financeEnquiry:{customer:"customerId",service:"serviceCode",assignee:"assignedTo"},
+    loan:{customer:"customerId",assignee:"assignedTo",followUps:"followUps"},
+    loanFollowUp:{loan:"loanId",creator:"createdBy"},
+    customer:{},
+    user:{},
+    financeService:{}
+  };
+  for(const [relation,field] of Object.entries(reverse[model||""]||{})){
+    if(out[relation]!==undefined) out[field]=out[relation];
+  }
   return out;
 }
 function buildInclude(model:ModelName,pops:any[]):any{
@@ -103,10 +117,20 @@ class Query<T=any> implements PromiseLike<T>{
   then<TResult1=T,TResult2=never>(onfulfilled?:((v:T)=>TResult1|PromiseLike<TResult1>)|null,onrejected?:((r:any)=>TResult2|PromiseLike<TResult2>)|null){return this.exec().then(onfulfilled as any,onrejected as any);}
 }
 class ModelInstance{
-  constructor(private model:ModelName,public data:any){}
+  constructor(private model:ModelName,public data:any){
+    return new Proxy(this,{
+      get:(target:any,key:PropertyKey,receiver:any)=>{
+        if(key in target)return Reflect.get(target,key,receiver);
+        return target.data[key as any];
+      },
+      set:(target:any,key:PropertyKey,value:any)=>{
+        if(key in target){(target as any)[key]=value;return true;}
+        target.data[key as any]=value;return true;
+      }
+    }) as any;
+  }
   get _id(){return this.data._id??this.data.id;}
   set _id(v:any){this.data._id=v;this.data.id=v;}
-  [key:string]:any;
   async save(){const id=String(this.data._id??this.data.id);const update:any={};for(const k of scalarMap[this.model]){if(k==="id"||k==="createdAt"||k==="updatedAt")continue;if(this.data[k]!==undefined)update[k]=this.data[k];}const r=await delegate(this.model).update({where:{id},data:update});Object.assign(this.data,alias(r));return this;}
   async deleteOne(){return delegate(this.model).delete({where:{id:String(this.data._id??this.data.id)}});}
   markModified(_path:string){}
