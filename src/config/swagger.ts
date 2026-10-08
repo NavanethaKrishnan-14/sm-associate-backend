@@ -9,7 +9,10 @@ const swaggerDefinition={
     version:"1.0.0",
     description:"REST API for SM Associate loan, customer, car, follow-up and reporting management."
   },
-  servers:[{url:"http://localhost:5000/api/v1",description:"Local development server"}],
+  servers:[
+    {url:"/api/v1",description:"Current deployment"},
+    {url:"http://localhost:5000/api/v1",description:"Local development server"}
+  ],
   tags:[
     {name:"Health",description:"API health"},
     {name:"Authentication",description:"Login and user management"},
