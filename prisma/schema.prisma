@@ -209,4 +209,4 @@ model LoanFollowUp {
   creator          User?          @relation("FollowUpCreatedBy", fields: [createdBy], references: [id])
 }
 
-@@index([Customer.email])
+@@index([email])
