@@ -1,0 +1,1 @@
+import { makeModel } from "./_repository"; export const LoanFollowUp:any=makeModel("loanFollowUp");
