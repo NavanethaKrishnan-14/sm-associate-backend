@@ -1,3 +1,4 @@
+import { seedDemoDataOnce } from "../utils/seedDemoData";
 import { Request, Response } from "express";
 import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
@@ -7,6 +8,13 @@ import { Loan } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 
 export async function dashboard(req:Request,res:Response){
+ if(process.env.NODE_ENV==="production"){
+  try{
+   await seedDemoDataOnce("sm-associate-demo-seed-20261008");
+  }catch(error){
+   console.error("Production demo data repair failed:",error);
+  }
+ }
  const now=new Date(), startMonth=new Date(now.getFullYear(),now.getMonth(),1), startNext=new Date(now.getFullYear(),now.getMonth()+1,1);
  const [customers,activeLoans,inventory,sold,sales,loanCounts,openFollowUps,monthSales,monthLoans,inventoryValue,inventoryExpenses]=await Promise.all([
   Customer.countDocuments(),
