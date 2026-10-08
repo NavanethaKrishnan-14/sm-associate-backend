@@ -54,7 +54,7 @@ function matches(obj:any,filter:any):boolean{
 function cleanData(data:any,model:ModelName){
   const allowed=new Set(scalarMap[model]);
   const out:any={};
-  for(const [k,v] of Object.entries(data||{})){if(k==="_id")out.id=v;else if(allowed.has(k))out[k]=v;}
+  for(const [k,v] of Object.entries(data||{})){if(k==="_id")out.id=v;else if(allowed.has(k))out[k]=(v&&typeof v==="object"&&"_id" in (v as any)?(v as any)._id:v);}
   return out;
 }
 function alias(record:any,model?:ModelName):any{
