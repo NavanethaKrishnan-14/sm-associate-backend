@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
-import { DEMO_SEED_MARKER } from "../utils/seedDemoData";
+import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { comparePassword, hashPassword, signToken } from "../utils/auth";
 
 const publicUser = (user:any) => ({
