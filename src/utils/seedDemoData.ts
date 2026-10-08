@@ -70,7 +70,12 @@ export async function clearDemoData() {
   await prisma.loan.deleteMany({
     where: {
       AND: [
-        { loanId: { startsWith: "LN-9" } },
+        {
+          OR: [
+            { loanId: { startsWith: "LN-9" } },
+            { loanId: { startsWith: "LOAN-9" } }
+          ]
+        },
         { notes: { contains: DEMO } }
       ]
     }
@@ -88,6 +93,9 @@ export async function clearDemoData() {
 
 export async function seedDemoData() {
   const admin = await requireAdmin();
+
+  // Replace only our DEMO DATA records. Real production records are preserved.
+  await clearDemoData();
 
   for (const [code, name, category, parentCode, description, sortOrder] of serviceData) {
     await prisma.financeService.upsert({
@@ -118,14 +126,14 @@ export async function seedDemoData() {
   }
 
   const loanSeed = [
-    ["LN-901", "CUS-901", "Home Loan", 4200000, 4000000, "HDFC Bank", "APPROVED", 42000, "2026-09-18", null],
-    ["LN-902", "CUS-902", "Car Loan", 850000, 800000, "ICICI Bank", "DISBURSED", 12500, "2026-08-22", "2026-09-10"],
-    ["LN-903", "CUS-903", "Business Loan", 2500000, null, "Axis Bank", "UNDER_REVIEW", 0, "2026-09-28", null],
-    ["LN-904", "CUS-904", "Personal Loan", 500000, null, "Bajaj Finance", "ENTERED", 0, "2026-10-02", null],
-    ["LN-905", "CUS-905", "Home Loan", 3200000, 3000000, "SBI", "CLOSED", 30000, "2026-07-12", "2026-08-02"],
-    ["LN-906", "CUS-906", "Car Loan", 700000, null, "HDFC Bank", "SUBMITTED", 0, "2026-09-30", null],
-    ["LN-907", "CUS-907", "Business Loan", 1800000, null, "Kotak Mahindra Bank", "REJECTED", 0, "2026-08-30", null],
-    ["LN-908", "CUS-901", "Personal Loan", 400000, null, "Tata Capital", "DOCUMENTS_PENDING", 0, "2026-10-01", null]
+    ["LOAN-901", "CUS-901", "Home Loan", 4200000, 4000000, "HDFC Bank", "APPROVED", 42000, "2026-09-18", null],
+    ["LOAN-902", "CUS-902", "Car Loan", 850000, 800000, "ICICI Bank", "DISBURSED", 12500, "2026-08-22", "2026-09-10"],
+    ["LOAN-903", "CUS-903", "Business Loan", 2500000, null, "Axis Bank", "UNDER_REVIEW", 0, "2026-09-28", null],
+    ["LOAN-904", "CUS-904", "Personal Loan", 500000, null, "Bajaj Finance", "ENTERED", 0, "2026-10-02", null],
+    ["LOAN-905", "CUS-905", "Home Loan", 3200000, 3000000, "SBI", "CLOSED", 30000, "2026-07-12", "2026-08-02"],
+    ["LOAN-906", "CUS-906", "Car Loan", 700000, null, "HDFC Bank", "SUBMITTED", 0, "2026-09-30", null],
+    ["LOAN-907", "CUS-907", "Business Loan", 1800000, null, "Kotak Mahindra Bank", "REJECTED", 0, "2026-08-30", null],
+    ["LOAN-908", "CUS-901", "Personal Loan", 400000, null, "Tata Capital", "DOCUMENTS_PENDING", 0, "2026-10-01", null]
   ] as const;
 
   const loanById = new Map<string, { id: string }>();
@@ -166,11 +174,11 @@ export async function seedDemoData() {
   await prisma.loanFollowUp.deleteMany({ where: { note: { contains: DEMO } } });
 
   const followUps = [
-    ["LN-901", "2026-10-04", "2026-10-07", "Collect final property documents - DEMO", "OPEN"],
-    ["LN-903", "2026-10-03", "2026-10-06", "Check bank review status - DEMO", "OPEN"],
-    ["LN-904", "2026-10-08", null, "Call customer for documents - DEMO", "OPEN"],
-    ["LN-906", "2026-10-05", null, "Verify submitted documents - DEMO", "OPEN"],
-    ["LN-907", "2026-09-25", null, "Explain rejection and discuss alternatives - DEMO", "COMPLETED"]
+    ["LOAN-901", "2026-10-04", "2026-10-07", "Collect final property documents - DEMO", "OPEN"],
+    ["LOAN-903", "2026-10-03", "2026-10-06", "Check bank review status - DEMO", "OPEN"],
+    ["LOAN-904", "2026-10-08", null, "Call customer for documents - DEMO", "OPEN"],
+    ["LOAN-906", "2026-10-05", null, "Verify submitted documents - DEMO", "OPEN"],
+    ["LOAN-907", "2026-09-25", null, "Explain rejection and discuss alternatives - DEMO", "COMPLETED"]
   ] as const;
 
   for (const [loanId, followUpDate, nextFollowUpDate, note, status] of followUps) {
@@ -312,6 +320,34 @@ export async function seedDemoData() {
       notes: DEMO
     }
   });
+
+  await Promise.all([
+    prisma.counter.upsert({
+      where: { name: "customer" },
+      create: { name: "customer", value: 907 },
+      update: { value: { increment: 0 } }
+    }),
+    prisma.counter.upsert({
+      where: { name: "loan" },
+      create: { name: "loan", value: 908 },
+      update: { value: { increment: 0 } }
+    }),
+    prisma.counter.upsert({
+      where: { name: "financeEnquiry" },
+      create: { name: "financeEnquiry", value: 908 },
+      update: { value: { increment: 0 } }
+    }),
+    prisma.counter.upsert({
+      where: { name: "car" },
+      create: { name: "car", value: 903 },
+      update: { value: { increment: 0 } }
+    }),
+    prisma.counter.upsert({
+      where: { name: "carSale" },
+      create: { name: "carSale", value: 901 },
+      update: { value: { increment: 0 } }
+    })
+  ]);
 
   console.log("COMPLETE DEMO DATA SEEDED");
   return {
