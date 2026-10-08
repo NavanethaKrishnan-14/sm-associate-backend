@@ -300,3 +300,28 @@ export async function seedDemoData() {
     carSales: 1
   };
 }
+
+export async function seedDemoDataOnce(marker: string) {
+  let markerClaimed = false;
+
+  try {
+    await prisma.counter.create({
+      data: { name: marker, value: 1 }
+    });
+    markerClaimed = true;
+
+    return await seedDemoData();
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return null;
+    }
+
+    if (markerClaimed) {
+      await prisma.counter.delete({
+        where: { name: marker }
+      }).catch(() => undefined);
+    }
+
+    throw error;
+  }
+}
