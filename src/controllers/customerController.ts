@@ -5,7 +5,7 @@ import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
 import { nextId } from "../utils/sequence";
 import { resolveCustomerId } from "../utils/resolveIds";
-import { createCustomerDocumentUploadSignature, deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
+import { createCustomerDocumentUploadInfo, deleteStoredDocument, uploadBufferToPostgres } from "../utils/documentStorage";
 
 export async function listCustomers(req:Request,res:Response){
  const search=String(req.query.search??"").trim();
@@ -42,7 +42,7 @@ export async function createCustomerDocumentUpload(req:Request,res:Response){
  if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
 
  try{
-   const signature=createCustomerDocumentUploadSignature(
+   const signature=createCustomerDocumentUploadInfo(
      String(customer.customerId||customer._id),
      String(customer.name||customer.customerId||customer._id),
      key,
@@ -165,7 +165,7 @@ export async function completeCustomerDocumentUpload(req:Request,res:Response){
    const updated=await customer.save();
 
    if(previous?.publicId||previous?.storedName){
-     await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+     await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
    }
 
    return res.status(201).json({
@@ -200,7 +200,7 @@ export async function uploadCustomerDocument(req:Request,res:Response){
  const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
  if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  try{
-  const result=await uploadBufferToCloudinary(req.file.buffer,req.file.originalname,"sm-associate/customers",`${customer.customerId||customer._id}-${isCustom?`custom-${documentName}`:key}`);
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/customers",`${customer.customerId||customer._id}-${isCustom?`custom-${documentName}`:key}`);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   let updated:any;
   let previous:any;
@@ -217,7 +217,7 @@ export async function uploadCustomerDocument(req:Request,res:Response){
    nextUploads.push({name:documentName,...fileMeta});
    updated=await Customer.findByIdAndUpdate(customer._id,{$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
   }
-  if(previous?.publicId||previous?.storedName)await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+  if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   return res.status(201).json({success:true,message:"Customer document uploaded successfully.",data:updated});
  }catch(error){
   console.error("Customer document upload/save failed:",error);
