@@ -1,0 +1,1 @@
+import { makeModel } from "./_repository"; export const FinanceService:any=makeModel("financeService"); export const FINANCE_SERVICE_TYPES=["DSA_FINANCE","HOME_LOAN","CAR_LOAN","BUSINESS_LOAN","PERSONAL_LOAN","INSURANCE_RENEWAL","GOLD_RESALE"] as const;
