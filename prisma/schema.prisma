@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+enum CarStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+}
+
+enum EnquiryStatus {
+  NEW
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum LoanStatus {
+  ENTERED
+  DOCUMENTS_PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISBURSED
+  CLOSED
+}
+
+enum FollowUpStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           UserRole @default(STAFF)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  assignedLoans  Loan[]   @relation("LoanAssignedTo")
+  enquiries     FinanceEnquiry[] @relation("EnquiryAssignedTo")
+  followUps     LoanFollowUp[] @relation("FollowUpCreatedBy")
+}
+
+model Counter {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  value     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  customerId      String   @unique
+  name            String
+  mobile          String
+  alternateMobile String?
+  email           String?
+  address         String?
+  city            String?
+  occupation      String?
+  pan             String?
+  aadhaarLast4    String?
+  notes           String?
+  documents       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  carsSold        Car[]    @relation("CarSeller")
+  carPurchases    CarSale[] @relation("SaleBuyer")
+  loans           Loan[]
+  enquiries       FinanceEnquiry[]
+}
+
+model Car {
+  id                 String   @id @default(cuid())
+  vehicleId          String   @unique
+  sellerId           String
+  registrationNumber String
+  make               String
+  model              String
+  year               Int?
+  ownerNumber        Int?
+  km                 Int?
+  fuel               String?
+  purchasePrice      Float
+  status             CarStatus @default(AVAILABLE)
+  purchaseDate       DateTime @default(now())
+  notes              String?
+  documents          Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  seller             Customer @relation("CarSeller", fields: [sellerId], references: [id])
+  expenses           CarExpense[]
+  sale               CarSale?
+}
+
+model CarExpense {
+  id          String   @id @default(cuid())
+  carId       String
+  category    String
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  car         Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+}
+
+model CarSale {
+  id              String   @id @default(cuid())
+  saleId          String   @unique
+  carId           String   @unique
+  buyerId         String
+  sellingPrice    Float
+  sellingExpenses Float    @default(0)
+  totalInvestment Float
+  profit          Float
+  saleDate        DateTime @default(now())
+  notes           String?
+  documents       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  car             Car      @relation(fields: [carId], references: [id])
+  buyer           Customer @relation("SaleBuyer", fields: [buyerId], references: [id])
+}
+
+model FinanceService {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String
+  parentCode  String?
+  description String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  enquiries   FinanceEnquiry[]
+}
+
+model FinanceEnquiry {
+  id             String         @id @default(cuid())
+  enquiryId      String         @unique
+  customerId     String
+  serviceCode    String
+  financeCompany String?
+  requiredAmount Float?
+  status         EnquiryStatus  @default(NEW)
+  followUpDate   DateTime?
+  notes          String?
+  assignedTo     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  service        FinanceService @relation(fields: [serviceCode], references: [code])
+  assignee       User?          @relation("EnquiryAssignedTo", fields: [assignedTo], references: [id])
+}
+
+model Loan {
+  id                       String      @id @default(cuid())
+  loanId                   String      @unique
+  customerId               String
+  loanType                 String
+  requiredAmount           Float
+  approvedAmount            Float?
+  financeCompany            String?
+  status                    LoanStatus  @default(ENTERED)
+  applicationDate           DateTime    @default(now())
+  expectedDisbursementDate  DateTime?
+  disbursementDate          DateTime?
+  commission                Float       @default(0)
+  rejectionReason           String?
+  notes                     String?
+  assignedTo                String?
+  documents                 Json?
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
+  customer                  Customer    @relation(fields: [customerId], references: [id])
+  assignee                  User?       @relation("LoanAssignedTo", fields: [assignedTo], references: [id])
+  followUps                 LoanFollowUp[]
+}
+
+model LoanFollowUp {
+  id               String         @id @default(cuid())
+  loanId           String
+  followUpDate     DateTime
+  nextFollowUpDate DateTime?
+  note             String
+  status           FollowUpStatus  @default(OPEN)
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  loan             Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  creator          User?          @relation("FollowUpCreatedBy", fields: [createdBy], references: [id])
+}
+
+@@index([Customer.email])
