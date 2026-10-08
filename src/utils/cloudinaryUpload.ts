@@ -1,127 +1,50 @@
-import { UploadApiResponse } from "cloudinary";
-import { cloudinary, assertCloudinaryConfigured } from "../config/cloudinary";
-
-function safeSegment(value:string){
-  return value.trim().replace(/[^a-zA-Z0-9_-]/g,"-").replace(/-+/g,"-").slice(0,80)||"document";
-}
+import { prisma } from "../config/db";
 
 function extensionOf(name:string){
-  const match=String(name||"").toLowerCase().match(/\.[a-z0-9]+$/);
-  return match?.[0]||"";
+  const m=String(name||"").toLowerCase().match(/\.[a-z0-9]+$/);
+  return m?.[0]||"";
 }
 
-function resourceTypeFor(extension:string){
-  // Office/text/binary documents must be stored as raw assets.
-  // Keep office/text files and PDFs as raw assets. This avoids Cloudinary
-  // attempting to transform document formats during upload.
-  if([".pdf",".doc",".docx",".xls",".xlsx",".ppt",".pptx",".txt",".csv"].includes(extension)) return "raw" as const;
-  return "auto" as const;
+function safe(value:string){
+  return value.trim().replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(0,100)||"document";
 }
 
-export async function uploadBufferToCloudinary(
-  buffer:Buffer,
-  originalName:string,
-  folder:string,
-  publicIdBase:string
-):Promise<UploadApiResponse>{
-  assertCloudinaryConfigured();
-
+export async function uploadBufferToCloudinary(buffer:Buffer,originalName:string,_folder:string,publicIdBase:string):Promise<any>{
   if(!buffer?.length) throw new Error("The selected document is empty.");
-
-  const original=String(originalName||"document");
-  const extension=extensionOf(original);
-  const resourceType=resourceTypeFor(extension);
-  const base=safeSegment(publicIdBase);
-  // Raw assets need their extension in the public ID so the downloaded file
-  // retains a useful filename/type.
-  const publicId=folder+"/"+base+"-"+Date.now()+(resourceType==="raw"?extension:"");
-
-  return new Promise((resolve,reject)=>{
-    const stream:any=cloudinary.uploader.upload_stream(
-      {
-        resource_type:resourceType,
-        public_id:publicId,
-        use_filename:false,
-        unique_filename:false,
-        overwrite:false
-      },
-      (error:unknown,result?:UploadApiResponse)=>{
-        if(error){
-          const message=error instanceof Error?error.message:String(error);
-          return reject(new Error("Cloudinary upload failed for "+(extension||"document")+": "+message));
-        }
-        if(!result)return reject(new Error("Cloudinary upload completed without a result."));
-        resolve(result);
-      }
-    );
-
-    stream.on("error",(error:unknown)=>{
-      reject(new Error("Cloudinary upload stream failed: "+(error instanceof Error?error.message:String(error))));
-    });
-    stream.end(buffer);
+  if(buffer.length>10*1024*1024) throw new Error("File is too large. Maximum size is 10 MB.");
+  const publicId=safe(publicIdBase)+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
+  const row=await prisma.document.create({
+    data:{
+      publicId,
+      originalName:String(originalName||"document"),
+      mimeType:"application/octet-stream",
+      size:buffer.length,
+      data:new Uint8Array(buffer)
+    }
   });
-}
-
-export async function deleteCloudinaryAsset(publicId?:string,resourceType?:string){
-  if(!publicId)return;
-  try{assertCloudinaryConfigured();}catch{
-    console.warn("Skipping Cloudinary cleanup because Cloudinary is not configured.");
-    return;
-  }
-
-  try{
-    await cloudinary.uploader.destroy(publicId,{
-      resource_type:(resourceType||"image") as "image"|"video"|"raw",
-      invalidate:true
-    });
-  }catch(error){
-    console.error("Unable to remove Cloudinary asset:",error);
-  }
-}
-
-export function createCustomerDocumentUploadSignature(
-  customerId:string,
-  customerName:string,
-  documentKey:string,
-  documentName:string,
-  originalName:string
-){
-  assertCloudinaryConfigured();
-
-  const cloudName=String(process.env.CLOUDINARY_CLOUD_NAME||"").trim();
-  const apiKey=String(process.env.CLOUDINARY_API_KEY||"").trim();
-  const apiSecret=String(process.env.CLOUDINARY_API_SECRET||"").trim();
-  const extension=extensionOf(originalName);
-  const resourceType=resourceTypeFor(extension);
-  const safeCustomer= safeSegment(customerName) || safeSegment(customerId);
-  const safeCustomerId=safeSegment(customerId);
-  const safeKey=documentKey==="custom"
-    ? safeSegment(documentName||"custom")
-    : safeSegment(documentKey);
-  const timestamp=Math.floor(Date.now()/1000);
-
-  // Cloudinary naming:
-  // sm-associate/customers/<PERSON NAME>/<DOCUMENT TYPE>-<CUSTOMER ID>-<TIMESTAMP>.<ext>
-  // Example:
-  // sm-associate/customers/Ravi-Kumar/bankStatement-CUS-0001-1730000000.pdf
-  const publicId="sm-associate/customers/"+safeCustomer+"/"+safeKey+"-"+safeCustomerId+"-"+Date.now()+(resourceType==="raw"?extension:"");
-  const displayName=(customerName+" - "+(documentKey==="custom"?documentName:documentKey))
-    .replace(/[\\/]/g,"-")
-    .slice(0,255);
-
-  const signature=cloudinary.utils.api_sign_request(
-    {public_id:publicId,timestamp,display_name:displayName},
-    apiSecret
-  );
-
   return {
-    cloudName,
-    apiKey,
-    timestamp,
-    signature,
-    publicId,
-    displayName,
-    resourceType,
-    uploadUrl:"https://api.cloudinary.com/v1_1/"+cloudName+"/"+resourceType+"/upload"
+    public_id:row.publicId,
+    secure_url:"/api/v1/documents/file/"+row.publicId,
+    resource_type:"raw",
+    format:extensionOf(originalName).replace(".","")||undefined
+  };
+}
+
+export async function deleteCloudinaryAsset(publicId?:string,_resourceType?:string){
+  if(!publicId)return;
+  await prisma.document.deleteMany({where:{publicId}});
+}
+
+export function createCustomerDocumentUploadSignature(customerId:string,_customerName:string,documentKey:string,documentName:string,originalName:string){
+  return {
+    storage:"postgresql",
+    customerId,
+    documentKey,
+    documentName,
+    originalName,
+    uploadUrl:"/api/v1/customers/"+encodeURIComponent(customerId)+"/documents/"+encodeURIComponent(documentKey),
+    uploadMethod:"POST",
+    uploadEncoding:"multipart/form-data",
+    resourceType:"database"
   };
 }
