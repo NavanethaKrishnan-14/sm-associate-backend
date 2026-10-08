@@ -5,7 +5,7 @@ import { Customer } from "../models/Customer";
 import { User } from "../models/User";
 import { nextId } from "../utils/sequence";
 import { resolveCustomerId, resolveLoanId, resolveUserId } from "../utils/resolveIds";
-import { deleteCloudinaryAsset, uploadBufferToCloudinary } from "../utils/cloudinaryUpload";
+import { deleteStoredDocument, uploadBufferToPostgres } from "../utils/documentStorage";
 
 const STAFF_LOAN_STATUSES=new Set(["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW"]);
 const ADMIN_ONLY_LOAN_FIELDS=["approvedAmount","disbursementDate","commission","rejectionReason","assignedTo"];
@@ -204,12 +204,12 @@ export async function updateLoanDocuments(req:Request,res:Response){
  next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
  for(const key of ["idProof","addressProof","incomeProof","bankStatement"]){
   if(!next[key]&&next.uploads?.[key]){
-   await deleteCloudinaryAsset(next.uploads[key]?.publicId||next.uploads[key]?.storedName,next.uploads[key]?.resourceType);
+   await deleteStoredDocument(next.uploads[key]?.publicId||next.uploads[key]?.storedName,next.uploads[key]?.resourceType);
    delete next.uploads[key];
   }
  }
  const removed=(Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
- await Promise.all(removed.map((item:any)=>deleteCloudinaryAsset(item?.publicId||item?.storedName,item?.resourceType)));
+ await Promise.all(removed.map((item:any)=>deleteStoredDocument(item?.publicId||item?.storedName,item?.resourceType)));
  next.customUploads=next.customUploads.filter((item:any)=>customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
  (loan as any).documents=next;
  await loan.save();
@@ -231,7 +231,7 @@ export async function uploadLoanDocument(req:Request,res:Response){
  if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
 
  try{
-  const result=await uploadBufferToCloudinary(
+  const result=await uploadBufferToPostgres(
    req.file.buffer,
    req.file.originalname,
    "sm-associate/loans",
@@ -260,7 +260,7 @@ export async function uploadLoanDocument(req:Request,res:Response){
     {new:true,runValidators:true}
    );
    if(previous?.publicId||previous?.storedName){
-    await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+    await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
    }
   }else{
    const current:any=(loan as any).documents||{};
@@ -281,7 +281,7 @@ export async function uploadLoanDocument(req:Request,res:Response){
     {new:true,runValidators:true}
    );
    if(previous?.publicId||previous?.storedName){
-    await deleteCloudinaryAsset(previous.publicId||previous.storedName,previous.resourceType);
+    await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
    }
   }
 
@@ -397,7 +397,7 @@ export async function deleteLoan(req:Request,res:Response){
  await Promise.all(documentMeta.map(async meta=>{
   const publicId=meta?.publicId||meta?.storedName;
   if(!publicId)return;
-  try{await deleteCloudinaryAsset(publicId,meta?.resourceType);}
+  try{await deleteStoredDocument(publicId,meta?.resourceType);}
   catch(error){console.warn("Loan document cleanup failed:",error);}
  }));
 
