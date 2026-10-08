@@ -39,45 +39,26 @@ app.use(morgan("dev"));
 // /auth/me and all user-management endpoints enforce JWT inside authRoutes.
 app.use("/api/v1/auth",authRoutes);
 
-// Everything below this point requires a valid JWT.
-app.use(requireAuth);
-
-// Health, API metadata, Swagger, and all business APIs are protected.
-app.get("/api/v1/health/db",async (_req,res)=>{
-  try{
-    const { connectDatabase }=await import("./config/db");
-    await connectDatabase();
-    return res.json({
-      success:true,
-      database:"connected",
-      postgresConfigured:Boolean(process.env.DATABASE_URL),
-      jwtConfigured:Boolean(process.env.JWT_SECRET),
-      adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD)
-    });
-  }catch(error:any){
-    return res.status(503).json({
-      success:false,
-      database:"disconnected",
-      postgresConfigured:Boolean(process.env.DATABASE_URL),
-      jwtConfigured:Boolean(process.env.JWT_SECRET),
-      adminConfigured:Boolean(process.env.ADMIN_EMAIL&&process.env.ADMIN_PASSWORD),
-      message:error?.message||"PostgreSQL connection failed."
-    });
-  }
-});
-
+// Public operational endpoints used by hosting providers and deployment smoke tests.
 app.get("/api/v1/health",(_req,res)=>{
   res.json({success:true,message:"SM Associate API is running.",database:"PostgreSQL"});
 });
 
-app.get("/api/v1",(_req,res)=>res.json({
-  success:true,
-  message:"SM Associate API is running.",
-  version:"v1",
-  security:"JWT required"
-}));
+app.get("/api/v1/health/db",async (_req,res)=>{
+  try{
+    const { connectDatabase }=await import("./config/db");
+    await connectDatabase();
+    return res.json({success:true,database:"connected",postgresConfigured:Boolean(process.env.DATABASE_URL)});
+  }catch(error:any){
+    return res.status(503).json({success:false,database:"disconnected",postgresConfigured:Boolean(process.env.DATABASE_URL),message:error?.message||"PostgreSQL connection failed."});
+  }
+});
 
+app.get("/api/v1",(_req,res)=>res.json({success:true,message:"SM Associate API is running.",version:"v1",security:"JWT required"}));
 setupSwagger(app);
+
+// Everything below this point requires a valid JWT.
+app.use(requireAuth);
 
 app.use("/api/v1/customers",customerRoutes);
 app.use("/api/v1/cars",carRoutes);
