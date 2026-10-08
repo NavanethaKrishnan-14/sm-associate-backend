@@ -11,7 +11,6 @@ import financeEnquiryRoutes from "./routes/financeEnquiryRoutes";
 import documentRoutes from "./routes/documentRoutes";
 import { requireAuth } from "./middleware/auth";
 import { setupSwagger } from "./config/swagger";
-import { assertCloudinaryConfigured } from "./config/cloudinary";
 
 const app=express();
 app.set("trust proxy",1);
@@ -68,9 +67,7 @@ app.get("/api/v1/health/db",async (_req,res)=>{
 });
 
 app.get("/api/v1/health",(_req,res)=>{
-  let cloudinaryConfigured=true;
-  try{assertCloudinaryConfigured();}catch{cloudinaryConfigured=false;}
-  res.json({success:true,message:"SM Associate API is running.",cloudinaryConfigured});
+  res.json({success:true,message:"SM Associate API is running.",database:"PostgreSQL"});
 });
 
 app.get("/api/v1",(_req,res)=>res.json({
