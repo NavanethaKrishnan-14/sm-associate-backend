@@ -1,0 +1,1 @@
+import { makeModel } from "./_repository"; export const FinanceEnquiry:any=makeModel("financeEnquiry"); export const ENQUIRY_STATUSES=["NEW","IN_PROGRESS","COMPLETED","CANCELLED"] as const;
