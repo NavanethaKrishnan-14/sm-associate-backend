@@ -1,0 +1,1 @@
+import { makeModel } from "./_repository"; export const CarSale:any=makeModel("carSale");
