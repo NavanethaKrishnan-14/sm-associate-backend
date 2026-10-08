@@ -1,7 +1,7 @@
 import { prisma } from "../config/db";
 
 const DEMO = "DEMO DATA";
-export const DEMO_SEED_MARKER = "sm-associate-demo-seed-20261008-v2";
+export const DEMO_SEED_MARKER = "sm-associate-demo-seed-20261008-v3";
 
 const serviceData = [
   ["DSA_FINANCE", "DSA Finance", "DSA", null, "DSA finance sourcing.", 1],
@@ -367,6 +367,7 @@ export async function seedDemoData() {
 
 export async function seedDemoDataOnce(marker: string) {
   const expected = {
+    services: serviceData.length,
     customers: 7,
     loans: 8,
     enquiries: 8,
@@ -374,7 +375,11 @@ export async function seedDemoDataOnce(marker: string) {
     sales: 1
   };
 
-  const [customers, loans, enquiries, cars, sales] = await Promise.all([
+  const demoServiceCodes = serviceData.map(([code]) => code);
+  const [services, customers, loans, enquiries, cars, sales] = await Promise.all([
+    prisma.financeService.count({
+      where: { code: { in: demoServiceCodes }, active: true }
+    }),
     prisma.customer.count({ where: { customerId: { startsWith: "CUS-9" }, notes: DEMO } }),
     prisma.loan.count({
       where: {
@@ -384,12 +389,19 @@ export async function seedDemoDataOnce(marker: string) {
         ]
       }
     }),
-    prisma.financeEnquiry.count({ where: { enquiryId: { startsWith: "ENQ-9" }, notes: DEMO } }),
+    prisma.financeEnquiry.count({
+      where: {
+        enquiryId: { startsWith: "ENQ-9" },
+        notes: DEMO,
+        serviceCode: { in: demoServiceCodes }
+      }
+    }),
     prisma.car.count({ where: { vehicleId: { startsWith: "CAR-9" }, notes: DEMO } }),
     prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } })
   ]);
 
   const complete =
+    services >= expected.services &&
     customers >= expected.customers &&
     loans >= expected.loans &&
     enquiries >= expected.enquiries &&
