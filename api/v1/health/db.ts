@@ -6,7 +6,7 @@ export default async function handler(_req: any, res: any) {
     return res.status(200).json({
       success: true,
       database: "connected",
-      mongodbConfigured: Boolean(process.env.MONGODB_URI),
+      postgresConfigured: Boolean(process.env.DATABASE_URL),
       jwtConfigured: Boolean(process.env.JWT_SECRET),
       adminConfigured: Boolean(
         process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
@@ -18,12 +18,12 @@ export default async function handler(_req: any, res: any) {
     return res.status(503).json({
       success: false,
       database: "disconnected",
-      mongodbConfigured: Boolean(process.env.MONGODB_URI),
+      postgresConfigured: Boolean(process.env.DATABASE_URL),
       jwtConfigured: Boolean(process.env.JWT_SECRET),
       adminConfigured: Boolean(
         process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
       ),
-      message: error?.message || "MongoDB connection failed."
+      message: error?.message || "PostgreSQL connection failed."
     });
   }
 }
