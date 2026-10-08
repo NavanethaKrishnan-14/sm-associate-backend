@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/db";
 import { Car } from "../models/Car";
 import { CarExpense } from "../models/CarExpense";
 import { CarSale } from "../models/CarSale";
@@ -105,14 +106,39 @@ export async function getCar(req:Request,res:Response){
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined;
  const search=String(req.query.search??"").trim();
- const filter:any=status?{status}:{};
- if(search) filter.$or=[{registrationNumber:{$regex:search,$options:"i"}},{vehicleId:{$regex:search,$options:"i"}},{make:{$regex:search,$options:"i"}},{model:{$regex:search,$options:"i"}}];
- const cars=await Car.find(filter).populate("sellerId","customerId name mobile").sort({createdAt:-1});
- const carIds=cars.map(car=>car._id);
- const expenseRows=carIds.length?await CarExpense.aggregate([{$match:{carId:{$in:carIds}}},{$group:{_id:"$carId",total:{$sum:"$amount"}}}]):[];
- const expenseMap=new Map(expenseRows.map(row=>[String(row._id),Number(row.total||0)]));
- const data=cars.map(car=>{const expenseTotal=expenseMap.get(String(car._id))||0;return {...car.toObject(),expenseTotal,totalInvestment:car.purchasePrice+expenseTotal};});
- res.json({success:true,data});
+ const where:any={};
+ if(status)where.status=status;
+ if(search){
+  where.OR=[
+   {registrationNumber:{contains:search,mode:"insensitive"}},
+   {vehicleId:{contains:search,mode:"insensitive"}},
+   {make:{contains:search,mode:"insensitive"}},
+   {model:{contains:search,mode:"insensitive"}}
+  ];
+ }
+
+ const cars=await prisma.car.findMany({
+  where,
+  orderBy:{createdAt:"desc"},
+  include:{
+   seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true,occupation:true}},
+   expenses:{select:{amount:true}}
+  }
+ });
+
+ const data=cars.map((row:any)=>{
+  const expenseTotal=(row.expenses||[]).reduce((sum:number,item:any)=>sum+Number(item.amount||0),0);
+  const {expenses,...car}=row;
+  return {
+   ...car,
+   _id:car.id,
+   sellerId:car.seller?{...car.seller,_id:car.seller.id}:car.sellerId,
+   expenseTotal,
+   totalInvestment:Number(car.purchasePrice||0)+expenseTotal
+  };
+ });
+
+ return res.json({success:true,data});
 }
 
 export async function updateCarStatus(req:Request,res:Response){
