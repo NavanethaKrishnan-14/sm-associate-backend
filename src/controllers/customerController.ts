@@ -69,122 +69,12 @@ export async function createCustomerDocumentUpload(req:Request,res:Response){
  }
 }
 
-export async function completeCustomerDocumentUpload(req:Request,res:Response){
- const customerId=await resolveCustomerId(req.params.id);
- if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
-
- const customer:any=await Customer.findById(customerId).select("_id customerId documents");
- if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
-
- const key=String(req.params.documentKey||"");
- const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
- const isCustom=key==="custom";
- if(!fixedKeys.includes(key)&&!isCustom){
-   return res.status(400).json({success:false,message:"Invalid customer document type."});
- }
-
- const originalName=String(req.body?.originalName||"").trim().slice(0,200);
- const publicId=String(req.body?.publicId||"").trim();
- const secureUrl=String(req.body?.secureUrl||"").trim();
- const resourceType=String(req.body?.resourceType||"").trim().toLowerCase();
- const format=String(req.body?.format||"").trim();
- const size=Number(req.body?.size||0);
- const documentName=isCustom?String(req.body?.documentName||"").trim().slice(0,100):"";
-
- if(!originalName||!publicId||!secureUrl){
-   return res.status(400).json({success:false,message:"Cloudinary upload information is incomplete."});
- }
- if(!/^https:\/\//i.test(secureUrl)){
-   return res.status(400).json({success:false,message:"Invalid Cloudinary document URL."});
- }
- if(!["image","raw","video"].includes(resourceType)){
-   return res.status(400).json({success:false,message:"Invalid Cloudinary document type."});
- }
- if(isCustom&&!documentName){
-   return res.status(400).json({success:false,message:"Document name is required for a custom document."});
- }
-
- const safePersonName=String(customer.name||customer.customerId||customer._id)
-   .trim()
-   .replace(/[^a-zA-Z0-9_-]/g,"-")
-   .replace(/-+/g,"-")
-   .slice(0,80)||"customer";
- const expectedPrefix="sm-associate/customers/"+safePersonName+"/";
- if(!publicId.startsWith(expectedPrefix)){
-   return res.status(400).json({success:false,message:"Invalid Cloudinary document identifier."});
- }
-
- let previous:any=null;
-
- try{
-   const documents:any=customer.documents||{};
-   const fileMeta={
-     originalName,
-     storedName:publicId,
-     publicId,
-     url:secureUrl,
-     resourceType,
-     format:format||undefined,
-     size:Number.isFinite(size)&&size>0?size:undefined,
-     uploadedAt:new Date()
-   };
-
-   if(!documents.uploads||typeof documents.uploads!=="object"||Array.isArray(documents.uploads)){
-     documents.uploads={};
-   }
-
-   if(!isCustom){
-     previous=documents.uploads[key];
-     documents[key]=true;
-     documents.uploads[key]=fileMeta;
-   }else{
-     const customUploads=Array.isArray(documents.customUploads)?documents.customUploads:[];
-     const customDocuments=Array.isArray(documents.customDocuments)?documents.customDocuments:[];
-
-     previous=customUploads.find((item:any)=>
-       String(item?.name||"").trim().toLowerCase()===documentName.toLowerCase()
-     );
-
-     if(!customDocuments.some((name:string)=>
-       String(name).trim().toLowerCase()===documentName.toLowerCase()
-     )){
-       customDocuments.push(documentName);
-     }
-
-     documents.customDocuments=customDocuments.slice(0,50);
-     documents.customUploads=[
-       ...customUploads.filter((item:any)=>
-         String(item?.name||"").trim().toLowerCase()!==documentName.toLowerCase()
-       ),
-       {name:documentName,...fileMeta}
-     ];
-   }
-
-   customer.documents=documents;
-   customer.markModified("documents");
-   const updated=await customer.save();
-
-   if(previous?.publicId||previous?.storedName){
-     await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
-   }
-
-   return res.status(201).json({
-     success:true,
-     message:"Customer document uploaded successfully.",
-     data:updated
-   });
- }catch(error){
-   console.error("Customer document completion failed:",error);
-
-   return res.status(500).json({
-     success:false,
-     message:"Unable to save document.",
-     code:"DOCUMENT_UPLOAD_FAILED",
-     details:process.env.NODE_ENV==="production"
-       ? undefined
-       : error instanceof Error ? error.message : String(error||"Unknown database error.")
-   });
- }
+export async function completeCustomerDocumentUpload(_req:Request,res:Response){
+ return res.status(410).json({
+   success:false,
+   message:"Direct client-side document completion is no longer supported. Upload the file as multipart/form-data to the document endpoint.",
+   code:"DIRECT_UPLOAD_REMOVED"
+ });
 }
 
 export async function uploadCustomerDocument(req:Request,res:Response){
