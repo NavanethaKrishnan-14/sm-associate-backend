@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
+import { seedDemoDataOnce } from "../utils/seedDemoData";
 import { Loan, LOAN_STATUSES } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 import { Customer } from "../models/Customer";
@@ -12,6 +13,10 @@ const STAFF_LOAN_STATUSES=new Set(["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UN
 const ADMIN_ONLY_LOAN_FIELDS=["approvedAmount","disbursementDate","commission","rejectionReason","assignedTo"];
 
 export async function listLoans(req:Request,res:Response){
+ if(process.env.NODE_ENV==="production"){
+  try{await seedDemoDataOnce("sm-associate-demo-seed-20261008");}
+  catch(error){console.error("Loan demo data repair failed:",error);}
+ }
  const status=req.query.status?String(req.query.status):undefined;
  const customerRef=req.query.customerId?String(req.query.customerId).trim():undefined;
  const search=String(req.query.search??"").trim();
