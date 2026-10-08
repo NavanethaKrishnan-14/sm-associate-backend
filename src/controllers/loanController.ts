@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/db";
 import { Loan, LOAN_STATUSES } from "../models/Loan";
 import { LoanFollowUp } from "../models/LoanFollowUp";
 import { Customer } from "../models/Customer";
@@ -11,10 +12,45 @@ const STAFF_LOAN_STATUSES=new Set(["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UN
 const ADMIN_ONLY_LOAN_FIELDS=["approvedAmount","disbursementDate","commission","rejectionReason","assignedTo"];
 
 export async function listLoans(req:Request,res:Response){
- const status=req.query.status?String(req.query.status):undefined, customerId=req.query.customerId?String(req.query.customerId):undefined, search=req.query.search?String(req.query.search).trim():undefined;
- const filter:any={...(status?{status}:{}),...(customerId?{customerId}:{})};
- if(search){const customers=await Customer.find({$or:[{name:{$regex:search,$options:"i"}},{mobile:{$regex:search,$options:"i"}},{customerId:{$regex:search,$options:"i"}}]}).select("_id");filter.$or=[{loanId:{$regex:search,$options:"i"}},{financeCompany:{$regex:search,$options:"i"}},{customerId:{$in:customers.map(c=>c._id)}}];}
- res.json({success:true,data:await Loan.find(filter).populate("customerId","customerId name mobile email city").sort({createdAt:-1})});
+ const status=req.query.status?String(req.query.status):undefined;
+ const customerRef=req.query.customerId?String(req.query.customerId).trim():undefined;
+ const search=String(req.query.search??"").trim();
+
+ const where:any={};
+ if(status)where.status=status;
+ if(customerRef){
+  const resolved=await resolveCustomerId(customerRef);
+  if(!resolved)return res.json({success:true,data:[]});
+  where.customerId=resolved;
+ }
+ if(search){
+  where.OR=[
+   {loanId:{contains:search,mode:"insensitive"}},
+   {financeCompany:{contains:search,mode:"insensitive"}},
+   {loanType:{contains:search,mode:"insensitive"}},
+   {customer:{name:{contains:search,mode:"insensitive"}}},
+   {customer:{mobile:{contains:search,mode:"insensitive"}}},
+   {customer:{customerId:{contains:search,mode:"insensitive"}}}
+  ];
+ }
+
+ const rows=await prisma.loan.findMany({
+  where,
+  orderBy:{createdAt:"desc"},
+  include:{
+   customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true,occupation:true}},
+   assignee:{select:{id:true,name:true,email:true,role:true}}
+  }
+ });
+
+ const data=rows.map((row:any)=>({
+  ...row,
+  _id:row.id,
+  customerId:row.customer?{...row.customer,_id:row.customer.id}:row.customerId,
+  assignedTo:row.assignee?{...row.assignee,_id:row.assignee.id}:row.assignedTo
+ }));
+
+ return res.json({success:true,data});
 }
 export async function getLoan(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
