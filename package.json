@@ -10,7 +10,8 @@
     "seed:demo": "tsx scripts/seed-demo-data.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "vercel-build": "prisma generate && tsc"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
@@ -32,7 +33,8 @@
     "@types/node": "^24.3.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "@vercel/node": "^5.5.0"
   },
   "devDependencies": {
     "prisma": "^6.16.0",
