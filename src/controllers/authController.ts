@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
+import { DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { comparePassword, hashPassword, signToken } from "../utils/auth";
 
 const publicUser = (user:any) => ({
@@ -24,7 +25,7 @@ export async function login(req:Request,res:Response){
   if (process.env.NODE_ENV === "production") {
     try {
       const { seedDemoDataOnce } = await import("../utils/seedDemoData");
-      const result = await seedDemoDataOnce("sm-associate-demo-seed-20261008");
+      const result = await seedDemoDataOnce(DEMO_SEED_MARKER);
       if (result) console.log("Production demo data seeded:", result);
     } catch (error) {
       console.error("Production demo seed failed:", error);
