@@ -1,0 +1,1 @@
+import { makeModel } from "./_repository"; export const Loan:any=makeModel("loan"); export const LOAN_STATUSES=["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW","APPROVED","REJECTED","DISBURSED","CLOSED"] as const;
