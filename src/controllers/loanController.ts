@@ -269,7 +269,8 @@ export async function deleteLoan(req:Request,res:Response){
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
-
+ await LoanFollowUp.deleteMany({loanId:loan._id});
+ await loan.deleteOne();
  res.json({success:true,message:"Loan deleted successfully."});
 }
 
