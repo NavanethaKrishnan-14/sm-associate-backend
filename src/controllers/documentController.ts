@@ -87,7 +87,7 @@ export async function listDocuments(_req:Request,res:Response){
     documents.push({
       id:item.documentId,
       name:item.name,
-      originalName:item.originalName||"No file attached — demo checklist",
+      originalName:item.originalName||"No file attached",
       source:"Loan",
       recordId:String(item.loanId),
       recordLabel:[loan.loanId,customer.customerId,customer.name,loan.loanType].filter(Boolean).join(" - ")||String(item.loanId),
