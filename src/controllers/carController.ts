@@ -99,6 +99,9 @@ export async function listCars(req:Request,res:Response){
   return {
    ...car,
    _id:car.id,
+   // A persisted sale means this vehicle is sold even if an earlier request
+   // failed between creating CarSale and updating the vehicle status.
+   status:sale?"SOLD":car.status,
    sellerId:car.seller?{...car.seller,_id:car.seller.id}:car.sellerId,
    sale,
    expenseTotal,
@@ -345,6 +348,32 @@ export async function sellCar(req:Request,res:Response){
  try{
   const buyer=await prisma.customer.findUnique({where:{id:buyerId},select:{id:true,customerId:true,name:true,mobile:true}});
   if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
+
+  // Make Sell Car safe to retry. If a previous request committed the sale
+  // but the client received an error/timeout, return that sale instead of
+  // showing "record already exists" and hiding it from Completed Sales.
+  const existingSale=await prisma.carSale.findUnique({
+   where:{carId},
+   include:{
+    buyer:{select:{id:true,customerId:true,name:true,mobile:true}},
+    car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true,status:true}}
+   }
+  });
+  if(existingSale){
+   await prisma.car.updateMany({where:{id:carId,status:{not:"SOLD"}},data:{status:"SOLD"}});
+   return res.status(200).json({
+    success:true,
+    message:"This vehicle sale was already recorded. The existing sale has been restored to Completed Sales.",
+    data:{
+     ...existingSale,
+     _id:existingSale.id,
+     carId:existingSale.car?{...existingSale.car,_id:existingSale.car.id}:existingSale.carId,
+     buyerId:existingSale.buyer?{...existingSale.buyer,_id:existingSale.buyer.id}:existingSale.buyerId,
+     car:existingSale.car?{...existingSale.car,status:"SOLD",_id:existingSale.car.id}:existingSale.car,
+     buyer:existingSale.buyer?{...existingSale.buyer,_id:existingSale.buyer.id}:existingSale.buyer
+    }
+   });
+  }
 
   const saleId=await nextId("SALE","carSale");
   const sale=await prisma.$transaction(async(tx:any)=>{
