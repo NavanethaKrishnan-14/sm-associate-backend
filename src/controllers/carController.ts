@@ -471,6 +471,103 @@ export async function sellCar(req:Request,res:Response){
  }
 }
 
+export async function updateCarSale(req:Request,res:Response){
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const existing=await prisma.carSale.findUnique({where:{carId}});
+ if(!existing)return res.status(404).json({success:false,message:"Completed sale not found for this vehicle."});
+
+ const data:any={};
+ if(req.body?.sellingPrice!==undefined){
+  const sellingPrice=Number(req.body.sellingPrice);
+  if(!Number.isFinite(sellingPrice)||sellingPrice<=0)return res.status(400).json({success:false,message:"Selling price must be greater than zero."});
+  data.sellingPrice=sellingPrice;
+ }
+ if(req.body?.sellingExpenses!==undefined){
+  const sellingExpenses=Number(req.body.sellingExpenses);
+  if(!Number.isFinite(sellingExpenses)||sellingExpenses<0)return res.status(400).json({success:false,message:"Selling expenses must be zero or a positive number."});
+  data.sellingExpenses=sellingExpenses;
+ }
+ if(req.body?.buyerId!==undefined){
+  const buyerId=await resolveCustomerId(req.body.buyerId);
+  if(!buyerId)return res.status(400).json({success:false,message:"Buyer/customer not found."});
+  const buyer=await prisma.customer.findUnique({where:{id:buyerId},select:{id:true}});
+  if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
+  data.buyerId=buyer.id;
+ }
+ if(req.body?.saleDate!==undefined){
+  const saleDate=new Date(req.body.saleDate);
+  if(Number.isNaN(saleDate.getTime()))return res.status(400).json({success:false,message:"Sale date is invalid."});
+  data.saleDate=saleDate;
+ }
+ if(req.body?.notes!==undefined)data.notes=String(req.body.notes).trim()||null;
+ if(!Object.keys(data).length)return res.status(400).json({success:false,message:"Provide at least one sale field to update."});
+
+ try{
+  const updated=await prisma.$transaction(async(tx:any)=>{
+   const car=await tx.car.findUnique({where:{id:carId},include:{expenses:{select:{amount:true}}}});
+   if(!car)throw Object.assign(new Error("Vehicle not found."),{statusCode:404});
+   const currentSale=await tx.carSale.findUnique({where:{carId}});
+   if(!currentSale)throw Object.assign(new Error("Completed sale not found for this vehicle."),{statusCode:404});
+   const expenseTotal=(car.expenses||[]).reduce((sum:number,item:any)=>sum+Number(item.amount||0),0);
+   const totalInvestment=Number(car.purchasePrice||0)+expenseTotal;
+   const sellingPrice=data.sellingPrice??Number(currentSale.sellingPrice);
+   const sellingExpenses=data.sellingExpenses??Number(currentSale.sellingExpenses||0);
+   const sale=await tx.carSale.update({
+    where:{id:currentSale.id},
+    data:{...data,totalInvestment,profit:sellingPrice-totalInvestment-sellingExpenses},
+    include:{
+     buyer:{select:{id:true,customerId:true,name:true,mobile:true}},
+     car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true,status:true}}
+    }
+   });
+   await tx.car.update({where:{id:carId},data:{status:"SOLD"}});
+   return sale;
+  });
+  return res.json({
+   success:true,
+   message:"Completed sale updated successfully.",
+   data:{
+    ...updated,
+    _id:updated.id,
+    carId:updated.car?{...updated.car,_id:updated.car.id}:updated.carId,
+    buyerId:updated.buyer?{...updated.buyer,_id:updated.buyer.id}:updated.buyerId,
+    car:updated.car?{...updated.car,status:"SOLD",_id:updated.car.id}:updated.car,
+    buyer:updated.buyer?{...updated.buyer,_id:updated.buyer.id}:updated.buyer
+   }
+  });
+ }catch(error:any){
+  if(error?.statusCode===404)return res.status(404).json({success:false,message:error.message});
+  console.error("Car sale update failed:",error);
+  return res.status(500).json({success:false,message:"Unable to update completed sale.",code:"CAR_SALE_UPDATE_FAILED"});
+ }
+}
+
+export async function deleteCarSale(req:Request,res:Response){
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ try{
+  const result=await prisma.$transaction(async(tx:any)=>{
+   const car=await tx.car.findUnique({where:{id:carId},select:{id:true,vehicleId:true,status:true}});
+   if(!car)throw Object.assign(new Error("Vehicle not found."),{statusCode:404});
+   const sale=await tx.carSale.findUnique({where:{carId}});
+   if(!sale)throw Object.assign(new Error("Completed sale not found for this vehicle."),{statusCode:404});
+   await tx.carSale.delete({where:{id:sale.id}});
+   await tx.car.update({where:{id:carId},data:{status:"AVAILABLE"}});
+   return {saleId:sale.saleId,carId:car.id,vehicleId:car.vehicleId};
+  });
+  return res.json({
+   success:true,
+   message:"Sale deleted successfully. The vehicle has been restored to Available Inventory.",
+   data:result
+  });
+ }catch(error:any){
+  if(error?.statusCode===404)return res.status(404).json({success:false,message:error.message});
+  console.error("Car sale delete failed:",error);
+  return res.status(500).json({success:false,message:"Unable to delete completed sale.",code:"CAR_SALE_DELETE_FAILED"});
+ }
+}
+
 export async function uploadSaleDocument(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
