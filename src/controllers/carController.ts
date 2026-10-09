@@ -100,7 +100,9 @@ export async function getCar(req:Request,res:Response){
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const expenses=await CarExpense.find({carId:car._id}).sort({date:-1,createdAt:-1});
  const expenseTotal=expenses.reduce((sum,item)=>sum+Number(item.amount||0),0);
- res.json({success:true,data:{...car.toObject(),expenseTotal,totalInvestment:car.purchasePrice+expenseTotal}});
+ // The Prisma-backed model adapter returns plain objects for queries.
+ const carData=typeof (car as any).toObject==="function"?(car as any).toObject():{...(car as any)};
+ return res.json({success:true,data:{...carData,expenseTotal,totalInvestment:Number(car.purchasePrice||0)+expenseTotal}});
 }
 
 export async function listCars(req:Request,res:Response){
