@@ -1,45 +1,6 @@
 {
-  "name": "sm-associate-backend",
-  "version": "1.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "prisma generate && tsc",
-    "start": "prisma migrate deploy && node dist/src/server.js",
-    "test:smoke": "npm run build && node scripts/smoke-test.cjs",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "prisma:push": "prisma db push",
-    "vercel-build": "prisma generate && node scripts/vercel-migrate.cjs && tsc"
-  },
-  "dependencies": {
-    "@prisma/client": "^6.16.0",
-    "bcryptjs": "^3.0.2",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
-    "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^2.0.2",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
-    "zod": "^4.1.5",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/morgan": "^1.9.10",
-    "@types/multer": "^2.3.0",
-    "@types/node": "^24.3.0",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.8",
-    "typescript": "5.9.2",
-    "@vercel/node": "^5.5.0",
-    "prisma": "^6.16.0",
-    "tsx": "^4.20.5"
-  },
-  "devDependencies": {},
-  "engines": {
-    "node": "24.x",
-    "npm": ">=10"
-  }
+ "name":"sm-associate-backend","version":"1.1.0","private":true,
+ "scripts":{"dev":"tsx watch src/server.ts","build":"prisma generate && tsc","start":"prisma migrate deploy && node dist/src/server.js","test:smoke":"npm run build && node scripts/smoke-test.cjs","test:routes":"npm run build && node scripts/route-test.cjs","prisma:generate":"prisma generate","prisma:migrate":"prisma migrate deploy","prisma:push":"prisma db push","vercel-build":"prisma generate && node scripts/vercel-migrate.cjs && tsc"},
+ "dependencies":{"@prisma/client":"^6.16.0","bcryptjs":"^3.0.2","cors":"^2.8.5","dotenv":"^17.2.2","express":"^5.1.0","jsonwebtoken":"^9.0.2","morgan":"^1.10.0","multer":"^2.0.2","swagger-jsdoc":"^6.2.8","swagger-ui-express":"^5.0.1","zod":"^4.1.5","@types/cors":"^2.8.19","@types/express":"^5.0.3","@types/jsonwebtoken":"^9.0.10","@types/morgan":"^1.9.10","@types/multer":"^2.3.0","@types/node":"^24.3.0","@types/swagger-jsdoc":"^6.0.4","@types/swagger-ui-express":"^4.1.8","typescript":"5.9.2","@vercel/node":"^5.5.0","prisma":"^6.16.0","tsx":"^4.20.5"},
+ "devDependencies":{},"engines":{"node":"24.x","npm":">=10"}
 }
