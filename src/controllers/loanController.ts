@@ -255,91 +255,45 @@ export async function updateLoanDocuments(req:Request,res:Response){
 export async function uploadLoanDocument(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const loan=await Loan.findById(loanId).select("_id loanId documents");
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
-
  const key=String(req.params.documentKey||"");
  const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
  if(!fixedKeys.includes(key)&&key!=="custom")return res.status(400).json({success:false,message:"Invalid document type."});
  const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
  if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
-
+ let createdPublicId:string|undefined;
  try{
-  const result=await uploadBufferToPostgres(
-   req.file.buffer,
-   req.file.originalname,
-   "sm-associate/loans",
-   `${loan.loanId||loan._id}-${key==="custom"?`custom-${documentName}`:key}`
-  );
-
-  const fileMeta={
-   originalName:req.file.originalname,
-   storedName:result.public_id,
-   publicId:result.public_id,
-   url:result.secure_url,
-   resourceType:result.resource_type,
-   format:result.format,
-   size:req.file.size,
-   uploadedAt:new Date()
-  };
-
+  const loan=await prisma.loan.findUnique({where:{id:loanId},select:{id:true,loanId:true,documents:true}});
+  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/loans",`${loan.loanId||loan.id}-${key==="custom"?`custom-${documentName}`:key}`,req.file.mimetype);
+  createdPublicId=result.public_id;
+  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date().toISOString()};
+  const current:any=loan.documents&&typeof loan.documents==="object"?loan.documents:{};
+  const next:any={...current,uploads:{...(current.uploads||{})},customDocuments:Array.isArray(current.customDocuments)?[...current.customDocuments]:[],customUploads:Array.isArray(current.customUploads)?[...current.customUploads]:[]};
+  let previous:any=null;
   if(fixedKeys.includes(key)){
-   const previous:any=(loan as any).documents?.uploads?.[key];
-   await Loan.findByIdAndUpdate(
-    loan._id,
-    {$set:{
-      [`documents.${key}`]:true,
-      [`documents.uploads.${key}`]:fileMeta
-    }},
-    {new:true,runValidators:true}
-   );
-   if(previous?.publicId||previous?.storedName){
-    await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
-   }
+   previous=next.uploads[key];
+   next[key]=true;
+   next.uploads[key]=fileMeta;
   }else{
-   const current:any=(loan as any).documents||{};
-   const customNames=Array.isArray(current.customDocuments)?current.customDocuments:[];
-   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
-   const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   const nextNames=customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase())
-    ?customNames:[...customNames,documentName];
-   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   nextUploads.push({name:documentName,...fileMeta});
-
-   await Loan.findByIdAndUpdate(
-    loan._id,
-    {$set:{
-      "documents.customDocuments":nextNames,
-      "documents.customUploads":nextUploads
-    }},
-    {new:true,runValidators:true}
-   );
-   if(previous?.publicId||previous?.storedName){
-    await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
-   }
+   previous=next.customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+   if(!next.customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase()))next.customDocuments.push(documentName);
+   next.customUploads=next.customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   next.customUploads.push({name:documentName,...fileMeta});
   }
-
-  const updated=await Loan.findById(loan._id)
-   .populate("customerId","customerId name mobile email city occupation")
-   .populate("assignedTo","name email role");
-
-  return res.status(201).json({
-   success:true,
-   message:"Loan document uploaded successfully.",
-   data:updated
-  });
+  const updated=await prisma.loan.update({where:{id:loan.id},data:{documents:next},include:{customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true,occupation:true}},assignee:{select:{id:true,name:true,email:true,role:true}}}});
+  if(previous?.publicId||previous?.storedName){
+   try{await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);}catch(cleanupError){console.warn("Previous loan document cleanup failed:",cleanupError);}
+  }
+  return res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:{...updated,_id:updated.id,customerId:updated.customer?{...updated.customer,_id:updated.customer.id}:updated.customerId,assignedTo:updated.assignee?{...updated.assignee,_id:updated.assignee.id}:updated.assignedTo}});
  }catch(error){
+  if(createdPublicId){try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete loan document upload:",cleanupError);}}
   console.error("Loan document upload/save failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
-  return res.status(500).json({
-   success:false,
-   message:"Unable to save document.",
-   code:"DOCUMENT_UPLOAD_FAILED",
-   details:process.env.NODE_ENV==="production"?undefined:message
-  });
+  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
+
 export async function downloadLoanDocument(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
