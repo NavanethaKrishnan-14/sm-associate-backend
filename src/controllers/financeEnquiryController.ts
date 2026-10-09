@@ -67,6 +67,7 @@ export async function createFinanceEnquiry(req:Request,res:Response){
  // Loan-related finance enquiries should immediately appear in the Loans module.
  // Insurance renewal and gold resale remain enquiries and do not create loan records.
  const loanTypeByService:Record<string,string>={
+  DSA_FINANCE:"DSA Finance",
   HOME_LOAN:"Home Loan",
   CAR_LOAN:"Car Loan",
   BUSINESS_LOAN:"Business Loan",
@@ -81,7 +82,7 @@ export async function createFinanceEnquiry(req:Request,res:Response){
     loanType,
     requiredAmount:data.requiredAmount===undefined?0:Number(data.requiredAmount),
     financeCompany:data.financeCompany||undefined,
-    notes:[data.notes, "Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\\n"),
+    notes:[data.notes, "Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\n"),
     status:"ENTERED",
     applicationDate:new Date()
    });
