@@ -23,7 +23,21 @@ export async function createCustomer(req:Request,res:Response){
  if(data.pan!==undefined&&data.pan!==null)data.pan=String(data.pan).trim().toUpperCase();
  if(data.aadhaarLast4!==undefined&&data.aadhaarLast4!==null)data.aadhaarLast4=String(data.aadhaarLast4).trim();
  if(!data.name||!data.mobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
- res.status(201).json({success:true,data:await Customer.create(data)});
+
+ // Treat a phone number as the customer identity here to avoid duplicate records
+ // when the finance enquiry form is submitted more than once or retried.
+ const normalizeMobile=(value:any)=>String(value??"").replace(/\\D/g,"");
+ const normalizedMobile=normalizeMobile(data.mobile);
+ const existingCustomers=await Customer.find({});
+ const existingCustomer=existingCustomers.find((item:any)=>normalizeMobile(item.mobile)===normalizedMobile);
+ if(existingCustomer){
+  return res.status(200).json({
+   success:true,
+   message:"A customer with this mobile number already exists. The existing customer was returned.",
+   data:existingCustomer
+  });
+ }
+ return res.status(201).json({success:true,data:await Customer.create(data)});
 }
 export async function createCustomerDocumentUpload(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
