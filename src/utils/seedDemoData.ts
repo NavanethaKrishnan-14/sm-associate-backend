@@ -1,7 +1,6 @@
 import { prisma } from "../config/db";
 
 const DEMO = "DEMO DATA";
-export const DEMO_SEED_MARKER = "sm-associate-demo-seed-20261008-v3";
 
 const serviceData = [
   ["DSA_FINANCE", "DSA Finance", "DSA", null, "DSA finance sourcing.", 1],
@@ -403,79 +402,4 @@ export async function seedDemoData() {
     operationalExpenses: 6,
     loanDocuments: 12
   };
-}
-
-export async function seedDemoDataOnce(marker: string) {
-  const expected = {
-    services: serviceData.length,
-    customers: 7,
-    loans: 8,
-    enquiries: 8,
-    cars: 3,
-    sales: 1,
-    operationalExpenses: 6,
-    loanDocuments: 12
-  };
-
-  const demoServiceCodes = serviceData.map(([code]) => code);
-  const [services, customers, loans, enquiries, cars, sales, operationalExpenses, loanDocuments] = await Promise.all([
-    prisma.financeService.count({
-      where: { code: { in: demoServiceCodes }, active: true }
-    }),
-    prisma.customer.count({ where: { customerId: { startsWith: "CUS-9" }, notes: DEMO } }),
-    prisma.loan.count({
-      where: {
-        OR: [
-          { loanId: { startsWith: "LOAN-9" }, notes: DEMO },
-          { loanId: { startsWith: "LN-9" }, notes: DEMO }
-        ]
-      }
-    }),
-    prisma.financeEnquiry.count({
-      where: {
-        enquiryId: { startsWith: "ENQ-9" },
-        notes: DEMO,
-        serviceCode: { in: demoServiceCodes }
-      }
-    }),
-    prisma.car.count({ where: { vehicleId: { startsWith: "CAR-9" }, notes: DEMO } }),
-    prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } }),
-    prisma.operationalExpense.count({ where: { expenseId: { startsWith: "OPX-9" }, notes: DEMO } }),
-    prisma.loanDocument.count({ where: { documentId: { startsWith: "LDOC-9" }, notes: { contains: DEMO } } })
-  ]);
-
-  const complete =
-    services >= expected.services &&
-    customers >= expected.customers &&
-    loans >= expected.loans &&
-    enquiries >= expected.enquiries &&
-    cars >= expected.cars &&
-    sales >= expected.sales &&
-    operationalExpenses >= expected.operationalExpenses &&
-    loanDocuments >= expected.loanDocuments;
-
-  if (complete) {
-    const existingMarker = await prisma.counter.findUnique({ where: { name: marker } });
-    if (!existingMarker) {
-      await prisma.counter.create({ data: { name: marker, value: 1 } });
-    }
-    return null;
-  }
-
-  await prisma.counter.deleteMany({ where: { name: marker } });
-
-  try {
-    const result = await seedDemoData();
-
-    await prisma.counter.upsert({
-      where: { name: marker },
-      create: { name: marker, value: 1 },
-      update: { value: 1 }
-    });
-
-    return result;
-  } catch (error) {
-    await prisma.counter.deleteMany({ where: { name: marker } });
-    throw error;
-  }
 }
