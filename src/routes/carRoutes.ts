@@ -21,5 +21,5 @@ router.post("/:id/expenses",requireAdmin,addCarExpense);
 router.patch("/expenses/:expenseId",requireAdmin,updateCarExpense);
 router.patch("/:id/expenses/:expenseId",requireAdmin,updateCarExpense);
 router.delete("/:id/expenses/:expenseId",requireAdmin,deleteCarExpense);
-router.post("/:id/sell",requireAdmin,sellCar);
+router.post("/:id/sell",requireStaffOrAdmin,sellCar);
 export default router;
