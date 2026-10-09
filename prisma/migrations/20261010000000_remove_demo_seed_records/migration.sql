@@ -53,16 +53,20 @@ DELETE FROM "OperationalExpense"
 WHERE "expenseId" IN ('OPX-901','OPX-902','OPX-903','OPX-904','OPX-905','OPX-906')
 AND notes = 'DEMO DATA';
 
-DELETE FROM "Car"
-WHERE "vehicleId" IN ('CAR-901','CAR-902','CAR-903')
-AND notes = 'DEMO DATA';
+DELETE FROM "Car" c
+WHERE c."vehicleId" IN ('CAR-901','CAR-902','CAR-903')
+AND c.notes = 'DEMO DATA'
+AND NOT EXISTS (SELECT 1 FROM "CarSale" s WHERE s."carId" = c.id)
+AND NOT EXISTS (SELECT 1 FROM "CarExpense" e WHERE e."carId" = c.id);
 
-DELETE FROM "Loan"
-WHERE "loanId" IN (
+DELETE FROM "Loan" l
+WHERE l."loanId" IN (
   'LOAN-901','LOAN-902','LOAN-903','LOAN-904','LOAN-905','LOAN-906','LOAN-907','LOAN-908',
   'LN-901','LN-902','LN-903','LN-904','LN-905','LN-906','LN-907','LN-908'
 )
-AND notes = 'DEMO DATA';
+AND l.notes = 'DEMO DATA'
+AND NOT EXISTS (SELECT 1 FROM "LoanDocument" d WHERE d."loanId" = l.id)
+AND NOT EXISTS (SELECT 1 FROM "LoanFollowUp" f WHERE f."loanId" = l.id);
 
 -- Delete only known demo customers that no remaining real record references.
 DELETE FROM "Customer" c
