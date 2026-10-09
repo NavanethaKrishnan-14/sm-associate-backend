@@ -208,8 +208,6 @@ export async function seedDemoData() {
     });
   }
 
-  await prisma.loanFollowUp.deleteMany({ where: { note: { contains: DEMO } } });
-
   const followUps = [
     ["LOAN-901", "2026-10-04", "2026-10-07", "Collect final property documents - DEMO", "OPEN"],
     ["LOAN-903", "2026-10-03", "2026-10-06", "Check bank review status - DEMO", "OPEN"],
