@@ -54,7 +54,54 @@ export async function updateLoanDocuments(req:Request,res:Response){
  return res.json({success:true,message:"Loan documents updated successfully.",data:updated});
 }
 
+const FINANCE_ENQUIRY_LOAN_TYPES:Record<string,string>={
+ DSA_FINANCE:"DSA Finance",
+ HOME_LOAN:"Home Loan",
+ CAR_LOAN:"Car Loan",
+ BUSINESS_LOAN:"Business Loan",
+ PERSONAL_LOAN:"Personal Loan"
+};
+
+// Backfill eligible finance enquiries that existed before automatic loan creation was added.
+// The enquiry ID marker makes this operation safe to repeat without creating duplicate loans.
+async function syncFinanceEnquiriesToLoans(){
+ try{
+  const enquiries=await prisma.financeEnquiry.findMany({
+   where:{serviceCode:{in:Object.keys(FINANCE_ENQUIRY_LOAN_TYPES)}},
+   orderBy:{createdAt:"asc"}
+  });
+  if(!enquiries.length)return;
+  const existingLoans=await prisma.loan.findMany({select:{notes:true}});
+  const linkedEnquiryIds=new Set<string>();
+  for(const loan of existingLoans){
+   const notes=String(loan.notes||"");
+   const match=notes.match(/Created from finance enquiry (ENQ-[^\\s]+)/);
+   if(match?.[1])linkedEnquiryIds.add(match[1]);
+  }
+  for(const enquiry of enquiries){
+   if(linkedEnquiryIds.has(String(enquiry.enquiryId)))continue;
+   const customer=await prisma.customer.findUnique({where:{id:enquiry.customerId},select:{id:true}});
+   if(!customer)continue;
+   const loanType=FINANCE_ENQUIRY_LOAN_TYPES[enquiry.serviceCode];
+   await prisma.loan.create({data:{
+    loanId:await nextId("LOAN","loan"),
+    customerId:customer.id,
+    loanType,
+    requiredAmount:enquiry.requiredAmount==null?0:Number(enquiry.requiredAmount),
+    financeCompany:enquiry.financeCompany||undefined,
+    notes:[enquiry.notes,"Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\\n"),
+    status:"ENTERED",
+    applicationDate:enquiry.createdAt||new Date()
+   }});
+   linkedEnquiryIds.add(String(enquiry.enquiryId));
+  }
+ }catch(error){
+  console.error("Finance enquiry to loan sync failed:",error);
+ }
+}
+
 export async function listLoans(req:Request,res:Response){
+ await syncFinanceEnquiriesToLoans();
  const status=req.query.status?String(req.query.status):undefined;
  const customerRef=req.query.customerId?String(req.query.customerId).trim():undefined;
  const search=String(req.query.search??"").trim();
