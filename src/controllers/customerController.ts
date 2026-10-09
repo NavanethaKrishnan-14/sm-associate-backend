@@ -15,7 +15,7 @@ export async function listCustomers(req:Request,res:Response){
 }
 export async function createCustomer(req:Request,res:Response){
  const allowed=["name","mobile","alternateMobile","email","address","city","occupation","pan","aadhaarLast4","notes"];
- const data:any={customerId:await nextId("CUS","customer")};
+ const data:any={};
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
  data.name=String(data.name??"").trim();
  data.mobile=String(data.mobile??"").trim();
@@ -28,6 +28,7 @@ export async function createCustomer(req:Request,res:Response){
  // when the finance enquiry form is submitted more than once or retried.
  const normalizeMobile=(value:any)=>String(value??"").replace(/\D/g,"");
  const normalizedMobile=normalizeMobile(data.mobile);
+ if(!normalizedMobile)return res.status(400).json({success:false,message:"Enter a valid customer mobile number."});
  const existingCustomers=await Customer.find({});
  const existingCustomer=existingCustomers.find((item:any)=>normalizeMobile(item.mobile)===normalizedMobile);
  if(existingCustomer){
@@ -37,6 +38,7 @@ export async function createCustomer(req:Request,res:Response){
    data:existingCustomer
   });
  }
+ data.customerId=await nextId("CUS","customer");
  return res.status(201).json({success:true,data:await Customer.create(data)});
 }
 export async function createCustomerDocumentUpload(req:Request,res:Response){
@@ -149,6 +151,12 @@ export async function updateCustomer(req:Request,res:Response){
  const nextName=patch.name!==undefined?String(patch.name).trim():customer.name;
  const nextMobile=patch.mobile!==undefined?String(patch.mobile).trim():customer.mobile;
  if(!nextName||!nextMobile)return res.status(400).json({success:false,message:"Customer name and mobile are required."});
+ const normalizeMobile=(value:any)=>String(value??"").replace(/\D/g,"");
+ const normalizedMobile=normalizeMobile(nextMobile);
+ if(!normalizedMobile)return res.status(400).json({success:false,message:"Enter a valid customer mobile number."});
+ const duplicateCandidates=await Customer.find({_id:{$ne:customer._id}});
+ const duplicate=duplicateCandidates.find((item:any)=>normalizeMobile(item.mobile)===normalizedMobile);
+ if(duplicate)return res.status(409).json({success:false,message:"Another customer already uses this mobile number. Use the existing customer record instead.",data:duplicate});
  patch.name=nextName;patch.mobile=nextMobile;
  const updated=await Customer.findByIdAndUpdate(customer._id,{$set:patch},{new:true,runValidators:true});
  res.json({success:true,data:updated});
