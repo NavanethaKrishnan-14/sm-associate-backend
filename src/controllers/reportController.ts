@@ -1,4 +1,3 @@
-import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { prisma } from "../config/db";
 import { Request, Response } from "express";
 
@@ -12,14 +11,8 @@ const sumSales=(rows:any[])=>rows.reduce((a,s)=>({
  profit:a.profit+Number(s.profit||0)
 }),{sales:0,investment:0,expenses:0,profit:0});
 
-async function ensureDemoData(){
- if(process.env.NODE_ENV!=="production")return;
- try{await seedDemoDataOnce(DEMO_SEED_MARKER);}
- catch(error){console.error("Production demo data repair failed:",error);}
-}
 
 export async function dashboard(req:Request,res:Response){
- await ensureDemoData();
 
  const now=new Date();
  const startMonth=new Date(now.getFullYear(),now.getMonth(),1);
@@ -80,7 +73,6 @@ export async function dashboard(req:Request,res:Response){
 }
 
 export async function loanRevenue(_req:Request,res:Response){
- await ensureDemoData();
  const loans=await prisma.loan.findMany({
   orderBy:{createdAt:"desc"},
   include:{customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}
@@ -105,7 +97,6 @@ export async function loanRevenue(_req:Request,res:Response){
 }
 
 export async function operationalReport(_req:Request,res:Response){
- await ensureDemoData();
  const [customers,loans,openFollowUps,inventory,sales,expenses]=await Promise.all([
   prisma.customer.count(),
   prisma.loan.findMany({select:{loanType:true,status:true,requiredAmount:true,approvedAmount:true,commission:true,financeCompany:true,createdAt:true}}),
