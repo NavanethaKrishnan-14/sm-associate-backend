@@ -40,22 +40,17 @@ export async function clearDemoData() {
   const demoEnquiryIds = ["ENQ-901","ENQ-902","ENQ-903","ENQ-904","ENQ-905","ENQ-906","ENQ-907","ENQ-908"];
   const demoCarIds = ["CAR-901","CAR-902","CAR-903"];
   const demoSaleIds = ["SALE-901"];
+  const demoOperationalExpenseIds = ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"];
 
   await prisma.loanFollowUp.deleteMany({
     where:{
-      OR:[
-        {note:{contains:DEMO}},
-        {loan:{loanId:{in:demoLoanIds}}}
-      ]
+      loan:{loanId:{in:demoLoanIds}}
     }
   });
 
   await prisma.financeEnquiry.deleteMany({
     where:{
-      OR:[
-        {enquiryId:{in:demoEnquiryIds}},
-        {notes:{contains:DEMO}}
-      ]
+      enquiryId:{in:demoEnquiryIds}
     }
   });
 
@@ -63,45 +58,37 @@ export async function clearDemoData() {
     where:{
       OR:[
         {saleId:{in:demoSaleIds}},
-        {notes:{contains:DEMO}}
+        {car:{vehicleId:{in:demoCarIds}}}
       ]
     }
   });
 
   await prisma.carExpense.deleteMany({
     where:{
-      OR:[
-        {description:{contains:DEMO}},
-        {car:{vehicleId:{in:demoCarIds}}}
-      ]
+      car:{vehicleId:{in:demoCarIds}}
     }
   });
 
   await prisma.car.deleteMany({
     where:{
-      OR:[
-        {vehicleId:{in:demoCarIds}},
-        {notes:{contains:DEMO}}
-      ]
+      vehicleId:{in:demoCarIds}
     }
   });
 
   await prisma.loan.deleteMany({
     where:{
-      OR:[
-        {loanId:{in:demoLoanIds}},
-        {notes:{contains:DEMO}}
-      ]
+      loanId:{in:demoLoanIds}
     }
   });
 
   await prisma.customer.deleteMany({
     where:{
-      OR:[
-        {customerId:{in:demoCustomerIds}},
-        {notes:{contains:DEMO}}
-      ]
+      customerId:{in:demoCustomerIds}
     }
+  });
+
+  await prisma.operationalExpense.deleteMany({
+    where: { expenseId: { in: demoOperationalExpenseIds } }
   });
 }
 
@@ -112,11 +99,12 @@ export async function seedDemoData() {
   await clearDemoData();
 
   for (const [code, name, category, parentCode, description, sortOrder] of serviceData) {
-    await prisma.financeService.upsert({
-      where: { code },
-      update: { name, category, parentCode, description, active: true, sortOrder },
-      create: { code, name, category, parentCode, description, active: true, sortOrder }
-    });
+    const existing = await prisma.financeService.findUnique({ where: { code } });
+    if (!existing) {
+      await prisma.financeService.create({
+        data: { code, name, category, parentCode, description, active: true, sortOrder }
+      });
+    }
   }
 
   const customers = [
@@ -335,6 +323,23 @@ export async function seedDemoData() {
     }
   });
 
+  const operationalExpenses = [
+    ["OPX-901", "Rent", "Office rent - DEMO", 28000, "2026-10-01", "Bank Transfer", "SM Office"],
+    ["OPX-902", "Utilities", "Electricity and internet - DEMO", 4200, "2026-10-02", "UPI", "Utility Providers"],
+    ["OPX-903", "Staff", "Office support salary - DEMO", 18000, "2026-10-03", "Bank Transfer", "Office Staff"],
+    ["OPX-904", "Marketing", "Local advertising - DEMO", 6500, "2026-10-04", "UPI", "Local Media"],
+    ["OPX-905", "Travel", "Vehicle inspection travel - DEMO", 1800, "2026-10-05", "Cash", "Local Travel"],
+    ["OPX-906", "Supplies", "Office stationery - DEMO", 1250, "2026-10-06", "UPI", "Office Supplies"]
+  ] as const;
+
+  for (const [expenseId, category, description, amount, date, paymentMethod, vendor] of operationalExpenses) {
+    await prisma.operationalExpense.upsert({
+      where: { expenseId },
+      update: { category, description, amount, date: new Date(date), paymentMethod, vendor, notes: DEMO },
+      create: { expenseId, category, description, amount, date: new Date(date), paymentMethod, vendor, notes: DEMO }
+    });
+  }
+
   // Keep future generated IDs after the seeded range without lowering
   // an already-higher production counter.
   for (const [name, minimum] of [
@@ -361,7 +366,8 @@ export async function seedDemoData() {
     financeEnquiries: 8,
     cars: 3,
     carExpenses: 5,
-    carSales: 1
+    carSales: 1,
+    operationalExpenses: 6
   };
 }
 
@@ -372,11 +378,12 @@ export async function seedDemoDataOnce(marker: string) {
     loans: 8,
     enquiries: 8,
     cars: 3,
-    sales: 1
+    sales: 1,
+    operationalExpenses: 6
   };
 
   const demoServiceCodes = serviceData.map(([code]) => code);
-  const [services, customers, loans, enquiries, cars, sales] = await Promise.all([
+  const [services, customers, loans, enquiries, cars, sales, operationalExpenses] = await Promise.all([
     prisma.financeService.count({
       where: { code: { in: demoServiceCodes }, active: true }
     }),
@@ -397,7 +404,8 @@ export async function seedDemoDataOnce(marker: string) {
       }
     }),
     prisma.car.count({ where: { vehicleId: { startsWith: "CAR-9" }, notes: DEMO } }),
-    prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } })
+    prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } }),
+    prisma.operationalExpense.count({ where: { expenseId: { startsWith: "OPX-9" }, notes: DEMO } })
   ]);
 
   const complete =
@@ -406,7 +414,8 @@ export async function seedDemoDataOnce(marker: string) {
     loans >= expected.loans &&
     enquiries >= expected.enquiries &&
     cars >= expected.cars &&
-    sales >= expected.sales;
+    sales >= expected.sales &&
+    operationalExpenses >= expected.operationalExpenses;
 
   if (complete) {
     const existingMarker = await prisma.counter.findUnique({ where: { name: marker } });
