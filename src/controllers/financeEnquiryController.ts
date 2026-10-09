@@ -100,7 +100,8 @@ export async function updateFinanceEnquiry(req:Request,res:Response){
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No enquiry fields were provided to update."});
  const enquiryId=await resolveEnquiryId(req.params.id);
  if(!enquiryId)return res.status(404).json({success:false,message:"Finance enquiry not found."});
- const enquiry=await FinanceEnquiry.findByIdAndUpdate(enquiryId,{$set:patch},{new:true,runValidators:true}).populate("customerId","customerId name mobile email").populate("assignedTo","name email role");
- if(!enquiry)return res.status(404).json({success:false,message:"Finance enquiry not found."});
- res.json({success:true,data:enquiry});
+ const updated=await FinanceEnquiry.findByIdAndUpdate(enquiryId,{$set:patch},{new:true,runValidators:true});
+ if(!updated)return res.status(404).json({success:false,message:"Finance enquiry not found."});
+ const enquiry=await FinanceEnquiry.findById(updated._id).populate("customerId","customerId name mobile email").populate("assignedTo","name email role");
+ return res.json({success:true,data:enquiry});
 }
