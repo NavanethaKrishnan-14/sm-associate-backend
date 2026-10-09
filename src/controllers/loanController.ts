@@ -89,7 +89,7 @@ async function syncFinanceEnquiriesToLoans(){
     loanType,
     requiredAmount:enquiry.requiredAmount==null?0:Number(enquiry.requiredAmount),
     financeCompany:enquiry.financeCompany||undefined,
-    notes:[enquiry.notes,"Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\\n"),
+    notes:[enquiry.notes,"Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\n"),
     status:"ENTERED",
     applicationDate:enquiry.createdAt||new Date()
    }});
