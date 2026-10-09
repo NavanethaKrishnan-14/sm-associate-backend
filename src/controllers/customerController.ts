@@ -3,6 +3,7 @@ import { Customer } from "../models/Customer";
 import { Loan } from "../models/Loan";
 import { Car } from "../models/Car";
 import { CarSale } from "../models/CarSale";
+import { FinanceEnquiry } from "../models/FinanceEnquiry";
 import { nextId } from "../utils/sequence";
 import { resolveCustomerId } from "../utils/resolveIds";
 import { createCustomerDocumentUploadInfo, deleteStoredDocument, uploadBufferToPostgres } from "../utils/documentStorage";
@@ -157,9 +158,31 @@ export async function deleteCustomer(req:Request,res:Response){
  if(!customerId)return res.status(404).json({success:false,message:"Customer not found."});
  const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
- const [loanCount,carCount,saleCount]=await Promise.all([Loan.countDocuments({customerId:customer._id}),Car.countDocuments({sellerId:customer._id}),CarSale.countDocuments({buyerId:customer._id})]);
- if(loanCount||carCount||saleCount)return res.status(409).json({success:false,message:"Customer cannot be deleted because transaction history exists.",data:{loanCount,carCount,saleCount}});
- await customer.deleteOne(); res.json({success:true,message:"Customer deleted successfully."});
+ const [loanCount,carCount,saleCount,enquiryCount]=await Promise.all([
+  Loan.countDocuments({customerId:customer._id}),
+  Car.countDocuments({sellerId:customer._id}),
+  CarSale.countDocuments({buyerId:customer._id}),
+  FinanceEnquiry.countDocuments({customerId:customer._id})
+ ]);
+ if(loanCount||carCount||saleCount||enquiryCount){
+  const reasons=[];
+  if(loanCount)reasons.push(loanCount+" loan record(s)");
+  if(enquiryCount)reasons.push(enquiryCount+" finance enquiry record(s)");
+  if(carCount)reasons.push(carCount+" vehicle record(s)");
+  if(saleCount)reasons.push(saleCount+" car sale record(s)");
+  return res.status(409).json({
+   success:false,
+   message:"This customer cannot be deleted because linked business records exist: "+reasons.join(", ")+". Keep the customer to preserve transaction history.",
+   data:{loanCount,carCount,saleCount,enquiryCount}
+  });
+ }
+ try{
+  await customer.deleteOne();
+  return res.json({success:true,message:"Customer deleted successfully.",data:{id:String(customer._id)}});
+ }catch(error){
+  console.error("Customer deletion failed:",error);
+  return res.status(409).json({success:false,message:"Customer could not be deleted because another record still references this customer. Remove or resolve linked records first."});
+ }
 }
 export async function getCustomerHistory(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
