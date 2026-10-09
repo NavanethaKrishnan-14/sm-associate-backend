@@ -101,7 +101,6 @@ model Car {
   status             CarStatus @default(AVAILABLE)
   purchaseDate       DateTime @default(now())
   notes              String?
-  documents          Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   seller             Customer @relation("CarSeller", fields: [sellerId], references: [id])
@@ -187,7 +186,6 @@ model Loan {
   rejectionReason           String?
   notes                     String?
   assignedTo                String?
-  documents                 Json?
   createdAt                 DateTime    @default(now())
   updatedAt                 DateTime    @updatedAt
   customer                  Customer    @relation(fields: [customerId], references: [id])
