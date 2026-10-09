@@ -5,7 +5,7 @@ const relationMap:any = {
   user:{assignedLoans:"assignedLoans",enquiries:"enquiries",followUps:"followUps"},
   customer:{carsSold:"carsSold",carPurchases:"carPurchases",loans:"loans",enquiries:"enquiries"},
   car:{seller:"seller",sellerId:"seller",expenses:"expenses",sale:"sale"},
-  carExpense:{car:"car"},
+  carExpense:{car:"car",carId:"car"},
   carSale:{car:"car",carId:"car",buyer:"buyer",buyerId:"buyer"},
   financeService:{enquiries:"enquiries"},
   financeEnquiry:{customer:"customer",customerId:"customer",service:"service",serviceCode:"service",assignee:"assignee",assignedTo:"assignee"},
@@ -113,7 +113,7 @@ export function makeModel(model:ModelName){
     static async create(data:any){if(Array.isArray(data))return Promise.all(data.map((item:any)=>this.create(item)));const r=await d.create({data:cleanData(data,model)});return new ModelInstance(model,alias(r,model))as any;}
     static async findByIdAndUpdate(id:any,update:any,_opts:any={}){
       const base=await d.findUnique({where:{id:String(id)}});if(!base)return null;const next:any={...base},set=update?.$set||update||{};
-      for(const[k,v]of Object.entries(set)){if(k.includes(".")){const root=k.split(".")[0];next[root]=next[root]&&typeof next[root]==="object"?{...next[root]}:{};setPath(next,k,v);}else next[k]=v;}
+      for(const[k,v]of Object.entries(set)){if(k.includes(".")){const [root,...rest]=k.split(".");if(root!=="documents")continue;next[root]=next[root]&&typeof next[root]==="object"?{...next[root]}:{};setPath(next,`${root}.${rest.join(".")}`,v);}else next[k]=v;}
       const r=await d.update({where:{id:String(id)},data:cleanData(next,model)});return new ModelInstance(model,alias(r,model))as any;
     }
     static async countDocuments(filter:any={}){const rows=await d.findMany();return rows.map((x:any)=>alias(x,model)).filter((r:any)=>matches(r,filter)).length;}
