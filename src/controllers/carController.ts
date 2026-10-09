@@ -82,17 +82,25 @@ export async function listCars(req:Request,res:Response){
   orderBy:{createdAt:"desc"},
   include:{
    seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true,occupation:true}},
-   expenses:{select:{amount:true}}
+   expenses:{select:{amount:true}},
+   sale:{include:{buyer:{select:{id:true,customerId:true,name:true,mobile:true}}}}
   }
  });
 
  const data=cars.map((row:any)=>{
   const expenseTotal=(row.expenses||[]).reduce((sum:number,item:any)=>sum+Number(item.amount||0),0);
   const {expenses,...car}=row;
+  const sale=car.sale?{
+   ...car.sale,
+   _id:car.sale.id,
+   carId:car.sale.carId,
+   buyerId:car.sale.buyer?{...car.sale.buyer,_id:car.sale.buyer.id}:car.sale.buyerId
+  }:null;
   return {
    ...car,
    _id:car.id,
    sellerId:car.seller?{...car.seller,_id:car.seller.id}:car.sellerId,
+   sale,
    expenseTotal,
    totalInvestment:Number(car.purchasePrice||0)+expenseTotal
   };
@@ -315,30 +323,97 @@ export async function getCarFinancials(req:Request,res:Response){
 export async function sellCar(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
- const car=await Car.findById(carId);
- if(!car)return res.status(404).json({success:false,message:"Car not found."});
- if(car.status==="SOLD")return res.status(409).json({success:false,message:"Car is already sold."});
- const buyerId=await resolveCustomerId(req.body.buyerId);
+ const buyerId=await resolveCustomerId(req.body?.buyerId);
  if(!buyerId)return res.status(400).json({success:false,message:"Buyer/customer not found."});
- const buyer=await Customer.findById(buyerId);
- if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
- const existingSale=await CarSale.findOne({carId:car._id});
- if(existingSale)return res.status(409).json({success:false,message:"Sale already exists for this car."});
- const expenses=await CarExpense.find({carId:car._id});
- const expenseTotal=expenses.reduce((sum,item)=>sum+item.amount,0);
- const totalInvestment=car.purchasePrice+expenseTotal;
- const sellingPrice=Number(req.body.sellingPrice);
- const sellingExpenses=Number(req.body.sellingExpenses??0);
- if(!Number.isFinite(sellingPrice)||sellingPrice<0)return res.status(400).json({success:false,message:"Selling price must be a valid number."});
- if(!Number.isFinite(sellingExpenses)||sellingExpenses<0)return res.status(400).json({success:false,message:"Selling expenses must be a valid number."});
- const profit=sellingPrice-totalInvestment-sellingExpenses;
- const sale=await CarSale.create({saleId:await nextId("SALE","carSale"),carId:car._id,buyerId:buyer._id,sellingPrice,sellingExpenses,totalInvestment,profit,saleDate:req.body.saleDate??new Date(),notes:req.body.notes,documents:{idProof:Boolean(req.body.documents?.idProof),agreement:Boolean(req.body.documents?.agreement),customDocuments:Array.isArray(req.body.documents?.customDocuments)?req.body.documents.customDocuments:[]}});
- car.status="SOLD"; await car.save();
- res.status(201).json({success:true,data:sale});
+
+ const sellingPrice=Number(req.body?.sellingPrice);
+ const sellingExpenses=Number(req.body?.sellingExpenses??0);
+ if(!Number.isFinite(sellingPrice)||sellingPrice<=0)return res.status(400).json({success:false,message:"Selling price must be greater than zero."});
+ if(!Number.isFinite(sellingExpenses)||sellingExpenses<0)return res.status(400).json({success:false,message:"Selling expenses must be zero or a positive number."});
+
+ const requestedSaleDate=req.body?.saleDate===undefined?new Date():new Date(req.body.saleDate);
+ if(Number.isNaN(requestedSaleDate.getTime()))return res.status(400).json({success:false,message:"Sale date is invalid."});
+ const notes=req.body?.notes===undefined?null:String(req.body.notes).trim()||null;
+ const documents:any={
+  idProof:Boolean(req.body?.documents?.idProof),
+  agreement:Boolean(req.body?.documents?.agreement),
+  customDocuments:Array.isArray(req.body?.documents?.customDocuments)
+   ?Array.from(new Set(req.body.documents.customDocuments.map((name:any)=>String(name).trim()).filter(Boolean))).slice(0,50)
+   :[]
+ };
+
+ try{
+  const buyer=await prisma.customer.findUnique({where:{id:buyerId},select:{id:true,customerId:true,name:true,mobile:true}});
+  if(!buyer)return res.status(400).json({success:false,message:"Buyer/customer not found."});
+
+  const saleId=await nextId("SALE","carSale");
+  const sale=await prisma.$transaction(async(tx:any)=>{
+   const car=await tx.car.findUnique({
+    where:{id:carId},
+    include:{expenses:{select:{amount:true}}}
+   });
+   if(!car)throw Object.assign(new Error("Car not found."),{statusCode:404});
+   if(car.status==="SOLD")throw Object.assign(new Error("Car is already sold."),{statusCode:409});
+
+   const expenseTotal=(car.expenses||[]).reduce((sum:number,item:any)=>sum+Number(item.amount||0),0);
+   const totalInvestment=Number(car.purchasePrice||0)+expenseTotal;
+   const profit=sellingPrice-totalInvestment-sellingExpenses;
+
+   const created=await tx.carSale.create({
+    data:{
+     saleId,
+     carId:car.id,
+     buyerId:buyer.id,
+     sellingPrice,
+     sellingExpenses,
+     totalInvestment,
+     profit,
+     saleDate:requestedSaleDate,
+     notes,
+     documents
+    },
+    include:{
+     buyer:{select:{id:true,customerId:true,name:true,mobile:true}},
+     car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true,status:true}}
+    }
+   });
+
+   const changed=await tx.car.updateMany({
+    where:{id:car.id,status:{not:"SOLD"}},
+    data:{status:"SOLD"}
+   });
+   if(changed.count!==1)throw Object.assign(new Error("This vehicle has already been sold. Refresh the inventory and try again."),{statusCode:409});
+   return created;
+  });
+
+  return res.status(201).json({
+   success:true,
+   message:"Vehicle sale completed successfully.",
+   data:{
+    ...sale,
+    _id:sale.id,
+    carId:sale.car?{...sale.car,_id:sale.car.id}:sale.carId,
+    buyerId:sale.buyer?{...sale.buyer,_id:sale.buyer.id}:sale.buyerId,
+    car:sale.car?{...sale.car,_id:sale.car.id}:sale.car,
+    buyer:sale.buyer?{...sale.buyer,_id:sale.buyer.id}:sale.buyer
+   }
+  });
+ }catch(error:any){
+  if(error?.statusCode===404||error?.statusCode===409){
+   return res.status(error.statusCode).json({success:false,message:error.message});
+  }
+  if(error?.code==="P2002"){
+   return res.status(409).json({success:false,message:"A sale already exists for this vehicle. Refresh the inventory to see the latest status."});
+  }
+  console.error("Car sale transaction failed:",error);
+  return res.status(500).json({success:false,message:"Unable to complete the vehicle sale.",code:"CAR_SALE_FAILED"});
+ }
 }
 
 export async function uploadSaleDocument(req:Request,res:Response){
- const sale=await CarSale.findOne({carId:req.params.id}).select("_id saleId documents");
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const sale=await CarSale.findOne({carId}).select("_id saleId documents");
  if(!sale)return res.status(404).json({success:false,message:"Sale not found. Complete the vehicle sale first."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
@@ -349,33 +424,37 @@ export async function uploadSaleDocument(req:Request,res:Response){
  const current:any=(sale as any).documents||{};
  if(key==="custom"){
   const customNames=Array.isArray(current.customDocuments)?current.customDocuments:[];
-  if(!customNames.some((name:string)=>name.toLowerCase()===documentName.toLowerCase()))return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
+  if(!customNames.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase()))return res.status(400).json({success:false,message:"Add the custom document name before uploading its file."});
  }
  try{
-  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/car-sales",`${sale.saleId||sale._id}-${key==="custom"?`custom-${documentName}`:key}`);
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/car-sales",`${sale.saleId||sale._id}-${key==="custom"?`custom-${documentName}`:key}`,req.file.mimetype);
   const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
   if(fixedKeys.includes(key)){
    const previous:any=current.uploads?.[key];
-   await CarSale.findByIdAndUpdate(sale._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+   const updated=await CarSale.findByIdAndUpdate(sale._id,{$set:{[`documents.${key}`]:true,[`documents.uploads.${key}`]:fileMeta}},{new:true,runValidators:true});
+   if(!updated)throw new Error("The sale document was uploaded but its metadata could not be saved.");
    if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }else{
    const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
    const previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
    const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    nextUploads.push({name:documentName,...fileMeta});
-   await CarSale.findByIdAndUpdate(sale._id,{$set:{"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+   const updated=await CarSale.findByIdAndUpdate(sale._id,{$set:{"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+   if(!updated)throw new Error("The sale document was uploaded but its metadata could not be saved.");
    if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
   }
   const updated=await CarSale.findById(sale._id).populate("buyerId","customerId name mobile");
-  return res.status(201).json({success:true,message:"Buyer document uploaded successfully.",data:updated});
+  return res.status(201).json({success:true,message:"Sale document uploaded successfully.",data:updated});
  }catch(error){
-  console.error("PostgreSQL sale document upload failed:",error);
+  console.error("Car sale document upload/save failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
-  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
+  return res.status(500).json({success:false,message:"Unable to save sale document.",code:"SALE_DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
 export async function downloadSaleDocument(req:Request,res:Response){
- const sale=await CarSale.findOne({carId:req.params.id});
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const sale=await CarSale.findOne({carId});
  if(!sale)return res.status(404).json({success:false,message:"Sale not found."});
  const key=String(req.params.documentKey||"");
  const documents:any=(sale as any).documents||{};
