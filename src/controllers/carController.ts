@@ -75,7 +75,24 @@ export async function uploadCarDocument(req:Request,res:Response){
   }
   return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...updated,_id:updated.id}});
  }catch(error){
-  if(createdPublicId){try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete car document upload:",cleanupError);}}
+  // A proxy/serialization error can occur after PostgreSQL has committed the
+  // JSON metadata. Verify persistence before reporting failure or deleting bytes.
+  if(createdPublicId){
+   try{
+    const persisted=await prisma.car.findUnique({where:{id:carId},select:{id:true,documents:true}});
+    const docs:any=persisted?.documents||{};
+    const fixedMeta=docs.uploads?.[key];
+    const customMeta=(Array.isArray(docs.customUploads)?docs.customUploads:[]).find((item:any)=>String(item.publicId||item.storedName||"")===createdPublicId);
+    const saved=(fixedKeys.includes(key)?fixedMeta:customMeta);
+    if(saved&&(String(saved.publicId||saved.storedName||"")===createdPublicId)){
+     console.warn("Car document metadata was saved despite a later upload response error:",error);
+     return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...persisted,_id:persisted.id}});
+    }
+   }catch(verifyError){
+    console.error("Could not verify car document persistence:",verifyError);
+   }
+   try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete car document upload:",cleanupError);}
+  }
   console.error("Car document upload/save failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
   return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
