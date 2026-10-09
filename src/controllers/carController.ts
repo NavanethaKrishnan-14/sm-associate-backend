@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/db";
-import { seedDemoDataOnce, DEMO_SEED_MARKER } from "../utils/seedDemoData";
 import { Car } from "../models/Car";
 import { CarExpense } from "../models/CarExpense";
 import { CarSale } from "../models/CarSale";
@@ -105,10 +104,6 @@ export async function getCar(req:Request,res:Response){
 }
 
 export async function listCars(req:Request,res:Response){
- if(process.env.NODE_ENV==="production"){
-  try{await seedDemoDataOnce(DEMO_SEED_MARKER);}
-  catch(error){console.error("Car demo data repair failed:",error);}
- }
  const status=req.query.status?String(req.query.status):undefined;
  const search=String(req.query.search??"").trim();
  const where:any={};
