@@ -55,10 +55,20 @@ const env = {
   DATABASE_URL: migrationUrl,
 };
 
-const command = process.platform === "win32" ? "npx.cmd" : "npx";
+// Launch the Prisma CLI through the current Node executable. This avoids
+// spawning the Windows npx.cmd shim directly, which can fail with EINVAL
+// when shell execution is disabled, and works the same on Vercel/Linux.
+let prismaCli;
+try {
+  prismaCli = require.resolve("prisma/build/index.js");
+} catch (error) {
+  console.error("Could not locate the installed Prisma CLI:", error);
+  process.exit(1);
+}
+
 const result = spawnSync(
-  command,
-  ["--no-install", "prisma", "migrate", "deploy"],
+  process.execPath,
+  [prismaCli, "migrate", "deploy"],
   {
     stdio: "inherit",
     env,
