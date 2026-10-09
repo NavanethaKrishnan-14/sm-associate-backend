@@ -193,6 +193,7 @@ model Loan {
   customer                  Customer    @relation(fields: [customerId], references: [id])
   assignee                  User?       @relation("LoanAssignedTo", fields: [assignedTo], references: [id])
   followUps                 LoanFollowUp[]
+  documentChecklist         LoanDocument[]
 }
 
 model LoanFollowUp {
@@ -246,4 +247,21 @@ model OperationalExpense {
 
   @@index([date])
   @@index([category])
+}
+
+model LoanDocument {
+  id           String   @id @default(cuid())
+  documentId   String   @unique
+  loanId       String
+  name         String
+  originalName String?
+  status       String   @default("PENDING")
+  notes        String?
+  uploadedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  loan         Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([status])
 }
