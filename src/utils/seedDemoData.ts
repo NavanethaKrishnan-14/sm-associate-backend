@@ -43,8 +43,14 @@ export async function clearDemoData() {
   const demoOperationalExpenseIds = ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"];
 
   await prisma.loanFollowUp.deleteMany({
-    where:{
-      loan:{loanId:{in:demoLoanIds}}
+    where: {
+      note: { in: [
+        "Collect final property documents - DEMO",
+        "Check bank review status - DEMO",
+        "Call customer for documents - DEMO",
+        "Verify submitted documents - DEMO",
+        "Explain rejection and discuss alternatives - DEMO"
+      ] }
     }
   });
 
@@ -56,16 +62,19 @@ export async function clearDemoData() {
 
   await prisma.carSale.deleteMany({
     where:{
-      OR:[
-        {saleId:{in:demoSaleIds}},
-        {car:{vehicleId:{in:demoCarIds}}}
-      ]
+      saleId:{in:demoSaleIds}
     }
   });
 
   await prisma.carExpense.deleteMany({
     where:{
-      car:{vehicleId:{in:demoCarIds}}
+      description:{in:[
+        "Periodic service - DEMO",
+        "Vehicle detailing - DEMO",
+        "Tyre replacement - DEMO",
+        "Brake and suspension work - DEMO",
+        "Final detailing - DEMO"
+      ]}
     }
   });
 
