@@ -42,63 +42,46 @@ export async function updateCarDocuments(req:Request,res:Response){
 export async function uploadCarDocument(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ const car=await Car.findById(carId).select("_id vehicleId documents");
+ if(!car)return res.status(404).json({success:false,message:"Car not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
  const fixedKeys=["carBook","carInsurance","agreement"];
- if(!fixedKeys.includes(key)&&key!=="custom")return res.status(400).json({success:false,message:"Invalid document type."});
- const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
- if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
- let createdPublicId:string|undefined;
+ const isCustom=key==="custom";
+ if(!fixedKeys.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid car document type."});
+ const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
+ if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  try{
-  const car=await prisma.car.findUnique({where:{id:carId},select:{id:true,vehicleId:true,documents:true}});
-  if(!car)return res.status(404).json({success:false,message:"Car not found."});
-  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/cars",`${car.vehicleId||car.id}-${key==="custom"?`custom-${documentName}`:key}`,req.file.mimetype);
-  createdPublicId=result.public_id;
-  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date().toISOString()};
-  const current:any=car.documents&&typeof car.documents==="object"?car.documents:{};
-  const next:any={...current,uploads:{...(current.uploads||{})},customDocuments:Array.isArray(current.customDocuments)?[...current.customDocuments]:[],customUploads:Array.isArray(current.customUploads)?[...current.customUploads]:[]};
-  let previous:any=null;
-  if(fixedKeys.includes(key)){
-   previous=next.uploads[key];
-   next[key]=true;
-   next.uploads[key]=fileMeta;
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/cars",String(car.vehicleId||car._id)+"-"+(isCustom?"custom-"+documentName:key),req.file.mimetype);
+  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
+  const current:any=(car as any).documents||{};
+  let updated:any;
+  let previous:any;
+  if(!isCustom){
+   previous=current.uploads?.[key];
+   const patch:any={};
+   patch["documents."+key]=true;
+   patch["documents.uploads."+key]=fileMeta;
+   updated=await Car.findByIdAndUpdate(car._id,{$set:patch},{new:true,runValidators:true});
   }else{
-   previous=next.customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   if(!next.customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase()))next.customDocuments.push(documentName);
-   next.customUploads=next.customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   next.customUploads.push({name:documentName,...fileMeta});
+   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
+   previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+   const customDocuments=Array.isArray(current.customDocuments)?current.customDocuments:[];
+   const nextDocuments=customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())?customDocuments:[...customDocuments,documentName];
+   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   updated=await Car.findByIdAndUpdate(car._id,{$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
   }
-  // Persist JSON metadata directly through Prisma; avoid the legacy model adapter here.
-  const updated=await prisma.car.update({where:{id:car.id},data:{documents:next as any}});
   if(previous?.publicId||previous?.storedName){
    try{await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);}catch(cleanupError){console.warn("Previous car document cleanup failed:",cleanupError);}
   }
-  return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...updated,_id:updated.id}});
+  return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:updated});
  }catch(error){
-  // A proxy/serialization error can occur after PostgreSQL has committed the
-  // JSON metadata. Verify persistence before reporting failure or deleting bytes.
-  if(createdPublicId){
-   try{
-    const persisted=await prisma.car.findUnique({where:{id:carId},select:{id:true,documents:true}});
-    const docs:any=persisted?.documents||{};
-    const fixedMeta=docs.uploads?.[key];
-    const customMeta=(Array.isArray(docs.customUploads)?docs.customUploads:[]).find((item:any)=>String(item.publicId||item.storedName||"")===createdPublicId);
-    const saved=(fixedKeys.includes(key)?fixedMeta:customMeta);
-    if(saved&&(String(saved.publicId||saved.storedName||"")===createdPublicId)){
-     console.warn("Car document metadata was saved despite a later upload response error:",error);
-     return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...persisted,_id:persisted.id}});
-    }
-   }catch(verifyError){
-    console.error("Could not verify car document persistence:",verifyError);
-   }
-   try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete car document upload:",cleanupError);}
-  }
   console.error("Car document upload/save failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
   return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
-
 export async function downloadCarDocument(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
