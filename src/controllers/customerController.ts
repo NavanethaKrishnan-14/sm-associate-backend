@@ -26,7 +26,7 @@ export async function createCustomer(req:Request,res:Response){
 
  // Treat a phone number as the customer identity here to avoid duplicate records
  // when the finance enquiry form is submitted more than once or retried.
- const normalizeMobile=(value:any)=>String(value??"").replace(/\\D/g,"");
+ const normalizeMobile=(value:any)=>String(value??"").replace(/\D/g,"");
  const normalizedMobile=normalizeMobile(data.mobile);
  const existingCustomers=await Customer.find({});
  const existingCustomer=existingCustomers.find((item:any)=>normalizeMobile(item.mobile)===normalizedMobile);
