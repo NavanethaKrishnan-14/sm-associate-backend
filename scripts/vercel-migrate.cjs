@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const { spawnSync } = require("node:child_process");
 
 function getMigrationDatabaseUrl() {
