@@ -230,3 +230,20 @@ model DashboardNote {
 
   @@index([updatedAt])
 }
+
+model OperationalExpense {
+  id            String   @id @default(cuid())
+  expenseId     String   @unique
+  category      String
+  description   String
+  amount        Float
+  date          DateTime @default(now())
+  paymentMethod String?
+  vendor        String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([category])
+}
