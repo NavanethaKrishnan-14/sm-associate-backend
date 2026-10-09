@@ -264,53 +264,89 @@ export async function createCar(req:Request,res:Response){
   data:{...populatedData,car:populatedData,seller:seller?{...(typeof seller.toObject==="function"?seller.toObject():seller)}:null}
  });
 }
+function serializeCarExpense(row:any){
+ const car=row?.car||null;
+ const expense={...row};
+ delete expense.car;
+ expense._id=String(row.id);
+ expense.carId=car?{...car,_id:String(car.id)}:String(row.carId||"");
+ return expense;
+}
+
+function parseExpenseDate(value:unknown):Date|null{
+ if(value===undefined||value===null||String(value).trim()==="")return null;
+ const date=new Date(String(value));
+ return Number.isNaN(date.getTime())?null:date;
+}
+
 export async function listCarExpenses(req:Request,res:Response){
  const rawCarId=req.query.carId?String(req.query.carId):undefined;
  const resolvedCarId=rawCarId?await resolveCarId(rawCarId):null;
- if(rawCarId&&!resolvedCarId)return res.status(404).json({success:false,message:"Car not found."});
- const filter:any=resolvedCarId?{carId:resolvedCarId}:{};
- const expenses=await CarExpense.find(filter).populate("carId","vehicleId registrationNumber make model year purchasePrice").sort({date:-1,createdAt:-1});
- res.json({success:true,data:expenses});
+ if(rawCarId&&!resolvedCarId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const rows=await prisma.carExpense.findMany({
+  where:resolvedCarId?{carId:resolvedCarId}:undefined,
+  include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}}},
+  orderBy:[{date:"desc"},{createdAt:"desc"}]
+ });
+ return res.json({success:true,data:rows.map(serializeCarExpense)});
 }
+
 export async function addCarExpense(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
- if(!carId)return res.status(404).json({success:false,message:"Car not found."});
- const car=await Car.findById(carId);
- if(!car)return res.status(404).json({success:false,message:"Car not found."});
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const car=await prisma.car.findUnique({where:{id:carId},select:{id:true}});
+ if(!car)return res.status(404).json({success:false,message:"Vehicle not found."});
  const amount=Number(req.body.amount);
  const category=String(req.body.category??"").trim();
  if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});
  if(!category)return res.status(400).json({success:false,message:"Expense category is required."});
- const allowed=["category","description","date"];
- const data:any={amount,carId:car._id,category};
- for(const key of allowed) if(key!=="category"&&req.body[key]!==undefined) data[key]=req.body[key];
- const expense=await CarExpense.create(data);
- res.status(201).json({success:true,data:expense});
+ const data:any={carId,amount,category};
+ if(req.body.description!==undefined)data.description=String(req.body.description).trim()||null;
+ if(req.body.date!==undefined&&String(req.body.date).trim()!==""){
+  const date=parseExpenseDate(req.body.date);
+  if(!date)return res.status(400).json({success:false,message:"Expense date is invalid. Use YYYY-MM-DD."});
+  data.date=date;
+ }
+ const row=await prisma.carExpense.create({
+  data,
+  include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}}}
+ });
+ return res.status(201).json({success:true,message:"Vehicle expense saved successfully.",data:serializeCarExpense(row)});
 }
+
 export async function updateCarExpense(req:Request,res:Response){
- const expense=await CarExpense.findById(req.params.expenseId);
- if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
+ const expenseId=String(req.params.expenseId||"");
+ const existing=await prisma.carExpense.findUnique({where:{id:expenseId}});
+ if(!existing)return res.status(404).json({success:false,message:"Expense not found."});
+ const data:any={};
  if(req.body.carId!==undefined){
   const resolvedCarId=await resolveCarId(req.body.carId);
-  const car=resolvedCarId?await Car.findById(resolvedCarId):null;
-  if(!car)return res.status(400).json({success:false,message:"Vehicle not found."});
-  expense.carId=car._id;
+  if(!resolvedCarId)return res.status(400).json({success:false,message:"Vehicle not found."});
+  data.carId=resolvedCarId;
  }
  if(req.body.amount!==undefined){
   const amount=Number(req.body.amount);
   if(!Number.isFinite(amount)||amount<0)return res.status(400).json({success:false,message:"Expense amount must be a valid non-negative number."});
-  expense.amount=amount;
+  data.amount=amount;
  }
  if(req.body.category!==undefined){
   const category=String(req.body.category).trim();
   if(!category)return res.status(400).json({success:false,message:"Expense category is required."});
-  expense.category=category;
+  data.category=category;
  }
- if(req.body.description!==undefined)expense.description=String(req.body.description).trim();
- if(req.body.date!==undefined)expense.date=new Date(req.body.date);
- await expense.save();
- const updated=await CarExpense.findById(expense._id).populate("carId","vehicleId registrationNumber make model year purchasePrice");
- res.json({success:true,data:updated});
+ if(req.body.description!==undefined)data.description=String(req.body.description).trim()||null;
+ if(req.body.date!==undefined){
+  const date=parseExpenseDate(req.body.date);
+  if(!date)return res.status(400).json({success:false,message:"Expense date is invalid. Use YYYY-MM-DD."});
+  data.date=date;
+ }
+ if(!Object.keys(data).length)return res.status(400).json({success:false,message:"No expense fields were provided to update."});
+ const row=await prisma.carExpense.update({
+  where:{id:expenseId},
+  data,
+  include:{car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,year:true,purchasePrice:true}}}
+ });
+ return res.json({success:true,message:"Vehicle expense updated successfully.",data:serializeCarExpense(row)});
 }
 
 export async function getCarFinancials(req:Request,res:Response){
@@ -421,11 +457,12 @@ export async function deleteCar(req:Request,res:Response){
 }
 
 export async function deleteCarExpense(req:Request,res:Response){
- const expense=await CarExpense.findById(req.params.expenseId);
+ const expenseId=String(req.params.expenseId||"");
+ const expense=await prisma.carExpense.findUnique({where:{id:expenseId}});
  if(!expense)return res.status(404).json({success:false,message:"Expense not found."});
  const carId=await resolveCarId(req.params.id);
- if(!carId)return res.status(404).json({success:false,message:"Car not found."});
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
  if(String(expense.carId)!==String(carId))return res.status(400).json({success:false,message:"Expense does not belong to this vehicle."});
- await expense.deleteOne();
- res.json({success:true,message:"Expense deleted successfully."});
+ await prisma.carExpense.delete({where:{id:expenseId}});
+ return res.json({success:true,message:"Vehicle expense deleted successfully."});
 }
