@@ -20,6 +20,49 @@ export async function getCar(req:Request,res:Response){
  return res.json({success:true,data:{...carData,expenseTotal,totalInvestment:Number(car.purchasePrice||0)+expenseTotal}});
 }
 
+
+const CAR_DOCUMENT_KEYS=["registrationCertificate","insurance","pollutionCertificate","purchaseInvoice"];
+export async function uploadCarDocument(req:Request,res:Response){
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const car=await Car.findById(carId).select("_id vehicleId documents");
+ if(!car)return res.status(404).json({success:false,message:"Vehicle not found."});
+ if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
+ const key=String(req.params.documentKey||""),isCustom=key==="custom";
+ if(!CAR_DOCUMENT_KEYS.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid vehicle document type."});
+ const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
+ if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
+ try{
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/cars",String(car.vehicleId||car._id)+"-"+(isCustom?"custom-"+documentName:key));
+  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
+  const current:any=(car as any).documents||{};let previous:any;let updated:any;
+  if(!isCustom){
+   previous=current.uploads?.[key];
+   updated=await Car.findByIdAndUpdate(car._id,{$set:{["documents."+key]:true,["documents.uploads."+key]:fileMeta}},{new:true,runValidators:true});
+  }else{
+   const names=Array.isArray(current.customDocuments)?current.customDocuments:[];
+   const uploads=Array.isArray(current.customUploads)?current.customUploads:[];
+   previous=uploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+   const nextNames=names.some((name:string)=>name.toLowerCase()===documentName.toLowerCase())?names:[...names,documentName];
+   const nextUploads=uploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   updated=await Car.findByIdAndUpdate(car._id,{$set:{"documents.customDocuments":nextNames,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
+  }
+  if(previous?.publicId||previous?.storedName)await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);
+  return res.status(201).json({success:true,message:"Vehicle document uploaded successfully.",data:updated});
+ }catch(error){console.error("Vehicle document upload/save failed:",error);const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});}
+}
+export async function updateCarDocuments(req:Request,res:Response){
+ const carId=await resolveCarId(req.params.id);
+ if(!carId)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const car=await Car.findById(carId);if(!car)return res.status(404).json({success:false,message:"Vehicle not found."});
+ const names=Array.isArray(req.body.customDocuments)?req.body.customDocuments.map((x:any)=>String(x).trim()).filter(Boolean).slice(0,50):[];
+ const patch:any={"documents.customDocuments":Array.from(new Set(names))};
+ for(const key of CAR_DOCUMENT_KEYS)if(req.body[key]!==undefined)patch["documents."+key]=Boolean(req.body[key]);
+ const updated=await Car.findByIdAndUpdate(car._id,{$set:patch},{new:true,runValidators:true});
+ return res.json({success:true,message:"Vehicle documents updated successfully.",data:updated});
+}
+
 export async function listCars(req:Request,res:Response){
  const status=req.query.status?String(req.query.status):undefined;
  const search=String(req.query.search??"").trim();
