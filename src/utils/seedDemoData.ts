@@ -41,6 +41,9 @@ export async function clearDemoData() {
   const demoCarIds = ["CAR-901","CAR-902","CAR-903"];
   const demoSaleIds = ["SALE-901"];
   const demoOperationalExpenseIds = ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"];
+  const demoLoanDocumentIds = ["LDOC-901","LDOC-902","LDOC-903","LDOC-904","LDOC-905","LDOC-906","LDOC-907","LDOC-908","LDOC-909","LDOC-910","LDOC-911","LDOC-912"];
+
+  await prisma.loanDocument.deleteMany({ where: { documentId: { in: demoLoanDocumentIds } } });
 
   await prisma.loanFollowUp.deleteMany({
     where: {
@@ -180,6 +183,29 @@ export async function seedDemoData() {
       }
     });
     loanById.set(loanId, row);
+  }
+
+  const loanDocumentSeed = [
+    ["LDOC-901", "LOAN-901", "Identity Proof", "VERIFIED", "Demo checklist only; no real file attached."],
+    ["LDOC-902", "LOAN-901", "Address Proof", "RECEIVED", "Demo checklist only; no real file attached."],
+    ["LDOC-903", "LOAN-901", "Income Proof", "PENDING", "Demo checklist only; no real file attached."],
+    ["LDOC-904", "LOAN-902", "Identity Proof", "VERIFIED", "Demo checklist only; no real file attached."],
+    ["LDOC-905", "LOAN-902", "Bank Statement", "VERIFIED", "Demo checklist only; no real file attached."],
+    ["LDOC-906", "LOAN-903", "Identity Proof", "RECEIVED", "Demo checklist only; no real file attached."],
+    ["LDOC-907", "LOAN-903", "Business Proof", "PENDING", "Demo checklist only; no real file attached."],
+    ["LDOC-908", "LOAN-904", "Identity Proof", "PENDING", "Demo checklist only; no real file attached."],
+    ["LDOC-909", "LOAN-904", "Income Proof", "PENDING", "Demo checklist only; no real file attached."],
+    ["LDOC-910", "LOAN-905", "Property Proof", "VERIFIED", "Demo checklist only; no real file attached."],
+    ["LDOC-911", "LOAN-906", "Bank Statement", "REJECTED", "Demo checklist only; no real file attached."],
+    ["LDOC-912", "LOAN-908", "Address Proof", "PENDING", "Demo checklist only; no real file attached."]
+  ] as const;
+
+  for (const [documentId, loanId, name, status, notes] of loanDocumentSeed) {
+    await prisma.loanDocument.upsert({
+      where: { documentId },
+      update: { loanId: loanById.get(loanId)!.id, name, status, notes, originalName: null, uploadedAt: null },
+      create: { documentId, loanId: loanById.get(loanId)!.id, name, status, notes, originalName: null, uploadedAt: null }
+    });
   }
 
   await prisma.loanFollowUp.deleteMany({ where: { note: { contains: DEMO } } });
@@ -376,7 +402,8 @@ export async function seedDemoData() {
     cars: 3,
     carExpenses: 5,
     carSales: 1,
-    operationalExpenses: 6
+    operationalExpenses: 6,
+    loanDocuments: 12
   };
 }
 
@@ -388,11 +415,12 @@ export async function seedDemoDataOnce(marker: string) {
     enquiries: 8,
     cars: 3,
     sales: 1,
-    operationalExpenses: 6
+    operationalExpenses: 6,
+    loanDocuments: 12
   };
 
   const demoServiceCodes = serviceData.map(([code]) => code);
-  const [services, customers, loans, enquiries, cars, sales, operationalExpenses] = await Promise.all([
+  const [services, customers, loans, enquiries, cars, sales, operationalExpenses, loanDocuments] = await Promise.all([
     prisma.financeService.count({
       where: { code: { in: demoServiceCodes }, active: true }
     }),
@@ -414,7 +442,8 @@ export async function seedDemoDataOnce(marker: string) {
     }),
     prisma.car.count({ where: { vehicleId: { startsWith: "CAR-9" }, notes: DEMO } }),
     prisma.carSale.count({ where: { saleId: { startsWith: "SALE-9" }, notes: DEMO } }),
-    prisma.operationalExpense.count({ where: { expenseId: { startsWith: "OPX-9" }, notes: DEMO } })
+    prisma.operationalExpense.count({ where: { expenseId: { startsWith: "OPX-9" }, notes: DEMO } }),
+    prisma.loanDocument.count({ where: { documentId: { startsWith: "LDOC-9" }, notes: { contains: DEMO } } })
   ]);
 
   const complete =
@@ -424,7 +453,8 @@ export async function seedDemoDataOnce(marker: string) {
     enquiries >= expected.enquiries &&
     cars >= expected.cars &&
     sales >= expected.sales &&
-    operationalExpenses >= expected.operationalExpenses;
+    operationalExpenses >= expected.operationalExpenses &&
+    loanDocuments >= expected.loanDocuments;
 
   if (complete) {
     const existingMarker = await prisma.counter.findUnique({ where: { name: marker } });
