@@ -1,0 +1,2 @@
+ALTER TABLE "Car" DROP COLUMN IF EXISTS "documents";
+ALTER TABLE "Loan" DROP COLUMN IF EXISTS "documents";
