@@ -9,7 +9,7 @@ function safe(value:string){
   return value.trim().replace(/[^a-zA-Z0-9._-]/g,"-").replace(/-+/g,"-").slice(0,100)||"document";
 }
 
-export async function uploadBufferToPostgres(buffer:Buffer,originalName:string,_folder:string,publicIdBase:string):Promise<any>{
+export async function uploadBufferToPostgres(buffer:Buffer,originalName:string,_folder:string,publicIdBase:string,mimeType?:string):Promise<any>{
   if(!buffer?.length) throw new Error("The selected document is empty.");
   if(buffer.length>10*1024*1024) throw new Error("File is too large. Maximum size is 10 MB.");
   const publicId=safe(publicIdBase)+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
@@ -17,9 +17,9 @@ export async function uploadBufferToPostgres(buffer:Buffer,originalName:string,_
     data:{
       publicId,
       originalName:String(originalName||"document"),
-      mimeType:"application/octet-stream",
+      mimeType:String(mimeType||"application/octet-stream"),
       size:buffer.length,
-      data:new Uint8Array(buffer)
+      data:Buffer.from(buffer)
     }
   });
   return {
