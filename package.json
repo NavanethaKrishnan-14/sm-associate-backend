@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/src/server.js",
+    "build": "prisma generate && tsc",
+    "start": "prisma migrate deploy && node dist/src/server.js",
     "test:smoke": "npm run build && node scripts/smoke-test.cjs",
     "seed:demo": "tsx scripts/seed-demo-data.ts",
     "prisma:generate": "prisma generate",
