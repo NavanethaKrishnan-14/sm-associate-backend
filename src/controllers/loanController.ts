@@ -255,45 +255,46 @@ export async function updateLoanDocuments(req:Request,res:Response){
 export async function uploadLoanDocument(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
+ const loan=await Loan.findById(loanId).select("_id loanId documents");
+ if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
  if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
  const key=String(req.params.documentKey||"");
  const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
- if(!fixedKeys.includes(key)&&key!=="custom")return res.status(400).json({success:false,message:"Invalid document type."});
- const documentName=key==="custom"?String(req.body.documentName||"").trim().slice(0,100):"";
- if(key==="custom"&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
- let createdPublicId:string|undefined;
+ const isCustom=key==="custom";
+ if(!fixedKeys.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid loan document type."});
+ const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
+ if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
  try{
-  const loan=await prisma.loan.findUnique({where:{id:loanId},select:{id:true,loanId:true,documents:true}});
-  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
-  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/loans",`${loan.loanId||loan.id}-${key==="custom"?`custom-${documentName}`:key}`,req.file.mimetype);
-  createdPublicId=result.public_id;
-  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date().toISOString()};
-  const current:any=loan.documents&&typeof loan.documents==="object"?loan.documents:{};
-  const next:any={...current,uploads:{...(current.uploads||{})},customDocuments:Array.isArray(current.customDocuments)?[...current.customDocuments]:[],customUploads:Array.isArray(current.customUploads)?[...current.customUploads]:[]};
-  let previous:any=null;
-  if(fixedKeys.includes(key)){
-   previous=next.uploads[key];
-   next[key]=true;
-   next.uploads[key]=fileMeta;
+  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/loans",String(loan.loanId||loan._id)+"-"+(isCustom?"custom-"+documentName:key),req.file.mimetype);
+  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
+  const current:any=(loan as any).documents||{};
+  let updated:any;
+  let previous:any;
+  if(!isCustom){
+   previous=current.uploads?.[key];
+   const patch:any={};
+   patch["documents."+key]=true;
+   patch["documents.uploads."+key]=fileMeta;
+   updated=await Loan.findByIdAndUpdate(loan._id,{$set:patch},{new:true,runValidators:true});
   }else{
-   previous=next.customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   if(!next.customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase()))next.customDocuments.push(documentName);
-   next.customUploads=next.customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   next.customUploads.push({name:documentName,...fileMeta});
+   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
+   previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
+   const customDocuments=Array.isArray(current.customDocuments)?current.customDocuments:[];
+   const nextDocuments=customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())?customDocuments:[...customDocuments,documentName];
+   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
+   nextUploads.push({name:documentName,...fileMeta});
+   updated=await Loan.findByIdAndUpdate(loan._id,{$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
   }
-  const updated=await prisma.loan.update({where:{id:loan.id},data:{documents:next},include:{customer:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true,occupation:true}},assignee:{select:{id:true,name:true,email:true,role:true}}}});
   if(previous?.publicId||previous?.storedName){
    try{await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);}catch(cleanupError){console.warn("Previous loan document cleanup failed:",cleanupError);}
   }
-  return res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:{...updated,_id:updated.id,customerId:updated.customer?{...updated.customer,_id:updated.customer.id}:updated.customerId,assignedTo:updated.assignee?{...updated.assignee,_id:updated.assignee.id}:updated.assignedTo}});
+  return res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:updated});
  }catch(error){
-  if(createdPublicId){try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete loan document upload:",cleanupError);}}
   console.error("Loan document upload/save failed:",error);
   const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
   return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
  }
 }
-
 export async function downloadLoanDocument(req:Request,res:Response){
  const loanId=await resolveLoanId(req.params.id);
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
