@@ -1,19 +1,23 @@
 import "dotenv/config";
-import { clearDemoData } from "../src/utils/seedDemoData";
+import { clearDemoData, seedDemoData } from "../src/utils/seedDemoData";
 import { disconnectDatabase } from "../src/config/db";
 
 async function main() {
-  const command = process.argv[2]?.toLowerCase();
+  const command = (process.argv[2] || "seed").toLowerCase();
 
   try {
-    if (command !== "clear") {
-      throw new Error(
-        "Demo data seeding is disabled. To remove existing demo records, run: npm run seed:demo:clear"
-      );
+    if (command === "clear") {
+      await clearDemoData();
+      console.log("Demo data cleared. Real records and Dashboard Notes were preserved.");
+      return;
     }
 
-    await clearDemoData();
-    console.log("Demo data cleared. Real records and Dashboard Notes were preserved.");
+    if (command !== "seed") {
+      throw new Error("Unknown command. Use: npm run seed:demo or npm run seed:demo:clear");
+    }
+
+    const result = await seedDemoData();
+    console.log("Demo data seeded successfully:", result);
   } finally {
     await disconnectDatabase();
   }
