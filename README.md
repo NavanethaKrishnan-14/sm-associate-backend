@@ -26,6 +26,22 @@ npm run prisma:migrate
 
 `prisma:migrate` applies the checked-in production migrations.
 
+After the database migrations have completed and the configured admin has logged in once, you can explicitly add the demo dataset:
+
+```bash
+npm run seed:demo
+```
+
+This seeds reserved demo IDs for customers, loans, loan-document checklist items, cars bought and sold, vehicle expenses, finance enquiries, and operational expenses. It removes/recreates only those reserved demo records; it does not clear real records or Dashboard Notes. Demo checklist items are metadata only and do not pretend that real files were uploaded.
+
+To remove only the demo dataset later:
+
+```bash
+npm run seed:demo:clear
+```
+
+Do not run the seed command before `npm run prisma:migrate` completes successfully.
+
 Start the API:
 
 ```bash
