@@ -6,7 +6,6 @@ import { Customer } from "../models/Customer";
 import { User } from "../models/User";
 import { nextId } from "../utils/sequence";
 import { resolveCustomerId, resolveLoanId, resolveUserId } from "../utils/resolveIds";
-import { deleteStoredDocument, uploadBufferToPostgres } from "../utils/documentStorage";
 
 const STAFF_LOAN_STATUSES=new Set(["ENTERED","DOCUMENTS_PENDING","SUBMITTED","UNDER_REVIEW"]);
 const ADMIN_ONLY_LOAN_FIELDS=["approvedAmount","disbursementDate","commission","rejectionReason","assignedTo"];
@@ -64,23 +63,11 @@ export async function createLoan(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.body.customerId);
  const customer=customerId?await Customer.findById(customerId):null;
  if(!customer)return res.status(400).json({success:false,message:"Customer not found."});
- const allowed=["loanType","requiredAmount","financeCompany","notes","documents"];
+ const allowed=["loanType","requiredAmount","financeCompany","notes"];
  if(req.user?.role==="ADMIN") allowed.push("approvedAmount","commission","applicationDate","expectedDisbursementDate","disbursementDate","rejectionReason","assignedTo");
  const data:any={loanId:await nextId("LOAN","loan"),status:"ENTERED"};
  data.customerId=customer._id;
  for(const key of allowed) if(req.body[key]!==undefined) data[key]=req.body[key];
- if(data.documents){
-  const docs=data.documents||{};
-  const customDocuments=Array.isArray(docs.customDocuments)?docs.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0):[];
-  const seen=new Set<string>();
-  data.documents={
-   idProof:Boolean(docs.idProof),
-   addressProof:Boolean(docs.addressProof),
-   incomeProof:Boolean(docs.incomeProof),
-   bankStatement:Boolean(docs.bankStatement),
-   customDocuments:customDocuments.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;})
-  };
- }
  if(!data.loanType||!Number.isFinite(Number(data.requiredAmount))||Number(data.requiredAmount)<0)return res.status(400).json({success:false,message:"Loan type and a valid required amount are required."});
  data.requiredAmount=Number(data.requiredAmount);
  if(data.commission!==undefined){
@@ -217,101 +204,6 @@ export async function updateLoanStatus(req:Request,res:Response){
  };
  return updateLoan(req,res);
 }
-export async function updateLoanDocuments(req:Request,res:Response){
- const loanId=await resolveLoanId(req.params.id);
- if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const loan=await Loan.findById(loanId);
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- const input=req.body||{},current:any=(loan as any).documents||{};
- const customInput=input.customDocuments!==undefined&&Array.isArray(input.customDocuments)
-  ?input.customDocuments.map((name:any)=>String(name).trim().slice(0,100)).filter((name:string)=>name.length>0)
-  :((current.customDocuments as string[])||[]);
- const seen=new Set<string>();
- const customDocuments=customInput.filter((name:string)=>{const key=name.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});
- const next:any={
-  idProof:input.idProof!==undefined?Boolean(input.idProof):Boolean(current.idProof),
-  addressProof:input.addressProof!==undefined?Boolean(input.addressProof):Boolean(current.addressProof),
-  incomeProof:input.incomeProof!==undefined?Boolean(input.incomeProof):Boolean(current.incomeProof),
-  bankStatement:input.bankStatement!==undefined?Boolean(input.bankStatement):Boolean(current.bankStatement),
-  customDocuments
- };
- next.uploads=current.uploads||{};
- next.customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
- for(const key of ["idProof","addressProof","incomeProof","bankStatement"]){
-  if(!next[key]&&next.uploads?.[key]){
-   await deleteStoredDocument(next.uploads[key]?.publicId||next.uploads[key]?.storedName,next.uploads[key]?.resourceType);
-   delete next.uploads[key];
-  }
- }
- const removed=(Array.isArray(current.customUploads)?current.customUploads:[]).filter((item:any)=>!customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
- await Promise.all(removed.map((item:any)=>deleteStoredDocument(item?.publicId||item?.storedName,item?.resourceType)));
- next.customUploads=next.customUploads.filter((item:any)=>customDocuments.some((name:string)=>name.toLowerCase()===String(item.name).toLowerCase()));
- (loan as any).documents=next;
- await loan.save();
- const updated=await Loan.findById(loan._id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
- res.json({success:true,data:updated});
-}
-
-export async function uploadLoanDocument(req:Request,res:Response){
- const loanId=await resolveLoanId(req.params.id);
- if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const loan=await Loan.findById(loanId).select("_id loanId documents");
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- if(!req.file)return res.status(400).json({success:false,message:"Please select a document to upload."});
- const key=String(req.params.documentKey||"");
- const fixedKeys=["idProof","addressProof","incomeProof","bankStatement"];
- const isCustom=key==="custom";
- if(!fixedKeys.includes(key)&&!isCustom)return res.status(400).json({success:false,message:"Invalid loan document type."});
- const documentName=isCustom?String(req.body.documentName||"").trim().slice(0,100):"";
- if(isCustom&&!documentName)return res.status(400).json({success:false,message:"Document name is required for a custom document."});
- try{
-  const result=await uploadBufferToPostgres(req.file.buffer,req.file.originalname,"sm-associate/loans",String(loan.loanId||loan._id)+"-"+(isCustom?"custom-"+documentName:key),req.file.mimetype);
-  const fileMeta={originalName:req.file.originalname,storedName:result.public_id,publicId:result.public_id,url:result.secure_url,resourceType:result.resource_type,format:result.format,size:req.file.size,uploadedAt:new Date()};
-  const current:any=(loan as any).documents||{};
-  let updated:any;
-  let previous:any;
-  if(!isCustom){
-   previous=current.uploads?.[key];
-   const patch:any={};
-   patch["documents."+key]=true;
-   patch["documents.uploads."+key]=fileMeta;
-   updated=await Loan.findByIdAndUpdate(loan._id,{$set:patch},{new:true,runValidators:true});
-  }else{
-   const customUploads=Array.isArray(current.customUploads)?current.customUploads:[];
-   previous=customUploads.find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
-   const customDocuments=Array.isArray(current.customDocuments)?current.customDocuments:[];
-   const nextDocuments=customDocuments.some((name:string)=>String(name).toLowerCase()===documentName.toLowerCase())?customDocuments:[...customDocuments,documentName];
-   const nextUploads=customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
-   nextUploads.push({name:documentName,...fileMeta});
-   updated=await Loan.findByIdAndUpdate(loan._id,{$set:{"documents.customDocuments":nextDocuments,"documents.customUploads":nextUploads}},{new:true,runValidators:true});
-  }
-  if(previous?.publicId||previous?.storedName){
-   try{await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);}catch(cleanupError){console.warn("Previous loan document cleanup failed:",cleanupError);}
-  }
-  return res.status(201).json({success:true,message:"Loan document uploaded successfully.",data:updated});
- }catch(error){
-  console.error("Loan document upload/save failed:",error);
-  const message=error instanceof Error?error.message:String(error||"Unknown document upload error.");
-  return res.status(500).json({success:false,message:"Unable to save document.",code:"DOCUMENT_UPLOAD_FAILED",details:process.env.NODE_ENV==="production"?undefined:message});
- }
-}
-export async function downloadLoanDocument(req:Request,res:Response){
- const loanId=await resolveLoanId(req.params.id);
- if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
- const loan=await Loan.findById(loanId);
- if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
- const key=String(req.params.documentKey||"");
- const documents:any=(loan as any).documents||{};
- let metadata:any;
- if(["idProof","addressProof","incomeProof","bankStatement"].includes(key))metadata=documents.uploads?.[key];
- else if(key==="custom"){
-  const documentName=String(req.query.documentName||"").trim();
-  metadata=(Array.isArray(documents.customUploads)?documents.customUploads:[]).find((item:any)=>String(item.name).toLowerCase()===documentName.toLowerCase());
- }
- if(!metadata?.url)return res.status(404).json({success:false,message:"Uploaded loan document not found."});
- return res.redirect(metadata.url);
-}
-
 export async function listFollowUps(req:Request,res:Response){
  const filter:any={}; if(req.params.id){const loanId=await resolveLoanId(req.params.id);if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});filter.loanId=loanId;} if(req.query.status)filter.status=String(req.query.status);
  const rows=await LoanFollowUp.find(filter).populate({path:"loanId",populate:{path:"customerId",select:"customerId name mobile"}}).populate("createdBy","name").sort({followUpDate:1});
@@ -377,21 +269,6 @@ export async function deleteLoan(req:Request,res:Response){
  if(!loanId)return res.status(404).json({success:false,message:"Loan not found."});
  const loan=await Loan.findById(loanId);
  if(!loan)return res.status(404).json({success:false,message:"Loan not found."});
-
- const documentMeta:any[]=[];
- const documents:any=(loan as any).documents||{};
- for(const meta of Object.values(documents.uploads||{})) if(meta)documentMeta.push(meta);
- if(Array.isArray(documents.customUploads))documentMeta.push(...documents.customUploads);
-
- await LoanFollowUp.deleteMany({loanId:loan._id});
- await loan.deleteOne();
-
- await Promise.all(documentMeta.map(async meta=>{
-  const publicId=meta?.publicId||meta?.storedName;
-  if(!publicId)return;
-  try{await deleteStoredDocument(publicId,meta?.resourceType);}
-  catch(error){console.warn("Loan document cleanup failed:",error);}
- }));
 
  res.json({success:true,message:"Loan deleted successfully."});
 }
