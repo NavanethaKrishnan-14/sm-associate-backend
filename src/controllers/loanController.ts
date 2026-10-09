@@ -202,11 +202,10 @@ export async function updateLoan(req:Request,res:Response){
  }
 
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No loan fields were provided to update."});
- const updated=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true})
-  .populate("customerId","customerId name mobile email city occupation")
-  .populate("assignedTo","name email role");
+ const updated=await Loan.findByIdAndUpdate(loanId,{$set:patch},{new:true,runValidators:true});
  if(!updated)return res.status(404).json({success:false,message:"Loan not found."});
- res.json({success:true,data:updated});
+ const populated=await Loan.findById(updated._id).populate("customerId","customerId name mobile email city occupation").populate("assignedTo","name email role");
+ return res.json({success:true,data:populated});
 }
 
 export async function updateLoanStatus(req:Request,res:Response){
@@ -407,13 +406,15 @@ export async function updateFollowUp(req:Request,res:Response){
   if(Number.isNaN(nextDate.getTime()))return res.status(400).json({success:false,message:"Next follow-up date must be valid."});
   const next=await LoanFollowUp.create({loanId:followUp.loanId,followUpDate:nextDate,note,status:"OPEN",createdBy:req.user?.id});
   patch.nextFollowUpDate=nextDate;
-  const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
-  return res.json({success:true,data:updated,nextFollowUp:await next.populate("createdBy","name")});
+  const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true});
+  const populated=updated?await LoanFollowUp.findById(updated._id).populate("createdBy","name"):null;
+  return res.json({success:true,data:populated,nextFollowUp:await next.populate("createdBy","name")});
  }
 
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No follow-up fields were provided to update."});
- const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true}).populate("createdBy","name");
- res.json({success:true,data:updated});
+ const updated=await LoanFollowUp.findByIdAndUpdate(followUp._id,{$set:patch},{new:true,runValidators:true});
+ const populated=updated?await LoanFollowUp.findById(updated._id).populate("createdBy","name"):null;
+ res.json({success:true,data:populated});
 }
 
 export async function deleteLoan(req:Request,res:Response){
