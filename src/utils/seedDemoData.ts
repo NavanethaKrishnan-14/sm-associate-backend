@@ -42,7 +42,7 @@ export async function clearDemoData() {
   const demoOperationalExpenseIds = ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"];
   const demoLoanDocumentIds = ["LDOC-901","LDOC-902","LDOC-903","LDOC-904","LDOC-905","LDOC-906","LDOC-907","LDOC-908","LDOC-909","LDOC-910","LDOC-911","LDOC-912"];
 
-  await prisma.loanDocument.deleteMany({ where: { documentId: { in: demoLoanDocumentIds } } });
+  await prisma.loanDocument.deleteMany({ where: { documentId: { in: demoLoanDocumentIds }, notes: "Demo checklist only; no real file attached." } });
 
   await prisma.loanFollowUp.deleteMany({
     where: {
@@ -58,13 +58,15 @@ export async function clearDemoData() {
 
   await prisma.financeEnquiry.deleteMany({
     where:{
-      enquiryId:{in:demoEnquiryIds}
+      enquiryId:{in:demoEnquiryIds},
+      notes:{endsWith:" - DEMO"}
     }
   });
 
   await prisma.carSale.deleteMany({
     where:{
-      saleId:{in:demoSaleIds}
+      saleId:{in:demoSaleIds},
+      notes:DEMO
     }
   });
 
@@ -82,31 +84,61 @@ export async function clearDemoData() {
 
   await prisma.car.deleteMany({
     where:{
-      vehicleId:{in:demoCarIds}
+      vehicleId:{in:demoCarIds},
+      notes:DEMO
     }
   });
 
   await prisma.loan.deleteMany({
     where:{
-      loanId:{in:demoLoanIds}
+      loanId:{in:demoLoanIds},
+      notes:DEMO
     }
   });
 
   await prisma.customer.deleteMany({
     where:{
-      customerId:{in:demoCustomerIds}
+      customerId:{in:demoCustomerIds},
+      notes:DEMO
     }
   });
 
   await prisma.operationalExpense.deleteMany({
-    where: { expenseId: { in: demoOperationalExpenseIds } }
+    where: { expenseId: { in: demoOperationalExpenseIds }, notes: DEMO }
   });
+}
+
+async function assertDemoIdsAreSafe() {
+  const checks = await Promise.all([
+    prisma.customer.findMany({ where: { customerId: { in: ["CUS-901","CUS-902","CUS-903","CUS-904","CUS-905","CUS-906","CUS-907"] } }, select: { customerId: true, notes: true } }),
+    prisma.loan.findMany({ where: { loanId: { in: ["LOAN-901","LOAN-902","LOAN-903","LOAN-904","LOAN-905","LOAN-906","LOAN-907","LOAN-908","LN-901","LN-902","LN-903","LN-904","LN-905","LN-906","LN-907","LN-908"] } }, select: { loanId: true, notes: true } }),
+    prisma.financeEnquiry.findMany({ where: { enquiryId: { in: ["ENQ-901","ENQ-902","ENQ-903","ENQ-904","ENQ-905","ENQ-906","ENQ-907","ENQ-908"] } }, select: { enquiryId: true, notes: true } }),
+    prisma.car.findMany({ where: { vehicleId: { in: ["CAR-901","CAR-902","CAR-903"] } }, select: { vehicleId: true, notes: true } }),
+    prisma.carSale.findMany({ where: { saleId: "SALE-901" }, select: { saleId: true, notes: true } }),
+    prisma.operationalExpense.findMany({ where: { expenseId: { in: ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"] } }, select: { expenseId: true, notes: true } }),
+    prisma.loanDocument.findMany({ where: { documentId: { in: ["LDOC-901","LDOC-902","LDOC-903","LDOC-904","LDOC-905","LDOC-906","LDOC-907","LDOC-908","LDOC-909","LDOC-910","LDOC-911","LDOC-912"] } }, select: { documentId: true, notes: true } })
+  ]);
+  const [customers, loans, enquiries, cars, sales, operationalExpenses, loanDocuments] = checks;
+  const collisions = [
+    ...customers.filter(x => x.notes !== DEMO).map(x => x.customerId),
+    ...loans.filter(x => x.notes !== DEMO).map(x => x.loanId),
+    ...enquiries.filter(x => !String(x.notes || "").endsWith(" - DEMO")).map(x => x.enquiryId),
+    ...cars.filter(x => x.notes !== DEMO).map(x => x.vehicleId),
+    ...sales.filter(x => x.notes !== DEMO).map(x => x.saleId),
+    ...operationalExpenses.filter(x => x.notes !== DEMO).map(x => x.expenseId),
+    ...loanDocuments.filter(x => x.notes !== "Demo checklist only; no real file attached.").map(x => x.documentId)
+  ];
+  if (collisions.length) {
+    throw new Error("Demo seed stopped to protect existing non-demo records with reserved IDs: " + collisions.join(", "));
+  }
 }
 
 export async function seedDemoData() {
   const admin = await requireAdmin();
 
-  // Replace only our DEMO DATA records. Real production records are preserved.
+  // Refuse to touch any existing non-demo row that collides with a reserved demo ID.
+  await assertDemoIdsAreSafe();
+  // Replace only known demo rows. Real production records are preserved.
   await clearDemoData();
 
   for (const [code, name, category, parentCode, description, sortOrder] of serviceData) {
