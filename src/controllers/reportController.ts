@@ -97,7 +97,7 @@ export async function loanRevenue(_req:Request,res:Response){
 }
 
 export async function operationalReport(_req:Request,res:Response){
- const [customers,loans,openFollowUps,inventory,sales,expenses]=await Promise.all([
+ const [customers,loans,openFollowUps,inventory,sales,expenses,operationalExpenses]=await Promise.all([
   prisma.customer.count(),
   prisma.loan.findMany({select:{loanType:true,status:true,requiredAmount:true,approvedAmount:true,commission:true,financeCompany:true,createdAt:true}}),
   prisma.loanFollowUp.findMany({
@@ -117,7 +117,8 @@ export async function operationalReport(_req:Request,res:Response){
     buyer:{select:{id:true,customerId:true,name:true,mobile:true}}
    }
   }),
-  prisma.carExpense.findMany({orderBy:{date:"desc"}})
+  prisma.carExpense.findMany({orderBy:{date:"desc"}}),
+  prisma.operationalExpense.findMany({orderBy:{date:"desc"}})
  ]);
 
  const status:any={},types:any={},finance:any={};
@@ -141,6 +142,12 @@ export async function operationalReport(_req:Request,res:Response){
  }));
  const salesProfit=formattedSales.reduce((sum:number,x:any)=>sum+Number(x.profit||0),0);
  const expensesTotal=expenses.reduce((sum:number,x:any)=>sum+Number(x.amount||0),0);
+ const operationalExpensesTotal=operationalExpenses.reduce((sum:number,x:any)=>sum+Number(x.amount||0),0);
+ const operationalByCategory:any={};
+ for(const expense of operationalExpenses){
+  const category=expense.category||"Other";
+  operationalByCategory[category]=(operationalByCategory[category]||0)+Number(expense.amount||0);
+ }
 
  return res.json({
   success:true,
@@ -150,7 +157,8 @@ export async function operationalReport(_req:Request,res:Response){
    openFollowUps:formattedFollowUps,
    inventory:formattedInventory,
    sales:{count:formattedSales.length,profit:salesProfit},
-   carExpenses:{count:expenses.length,total:expensesTotal}
+   carExpenses:{count:expenses.length,total:expensesTotal},
+   operationalExpenses:{count:operationalExpenses.length,total:operationalExpensesTotal,byCategory:operationalByCategory,records:operationalExpenses}
   }
  });
 }
