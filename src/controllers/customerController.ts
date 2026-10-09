@@ -165,7 +165,7 @@ export async function deleteCustomer(req:Request,res:Response){
   FinanceEnquiry.countDocuments({customerId:customer._id})
  ]);
  if(loanCount||carCount||saleCount||enquiryCount){
-  const reasons=[];
+  const reasons:string[]=[];
   if(loanCount)reasons.push(loanCount+" loan record(s)");
   if(enquiryCount)reasons.push(enquiryCount+" finance enquiry record(s)");
   if(carCount)reasons.push(carCount+" vehicle record(s)");
