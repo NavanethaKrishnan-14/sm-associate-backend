@@ -68,11 +68,12 @@ export async function uploadCarDocument(req:Request,res:Response){
    next.customUploads=next.customUploads.filter((item:any)=>String(item.name).toLowerCase()!==documentName.toLowerCase());
    next.customUploads.push({name:documentName,...fileMeta});
   }
-  const updated=await prisma.car.update({where:{id:car.id},data:{documents:next},include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+  // Persist JSON metadata directly through Prisma; avoid the legacy model adapter here.
+  const updated=await prisma.car.update({where:{id:car.id},data:{documents:next as any}});
   if(previous?.publicId||previous?.storedName){
    try{await deleteStoredDocument(previous.publicId||previous.storedName,previous.resourceType);}catch(cleanupError){console.warn("Previous car document cleanup failed:",cleanupError);}
   }
-  return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...updated,_id:updated.id,sellerId:updated.seller?{...updated.seller,_id:updated.seller.id}:null}});
+  return res.status(201).json({success:true,message:"Car document uploaded successfully.",data:{...updated,_id:updated.id}});
  }catch(error){
   if(createdPublicId){try{await deleteStoredDocument(createdPublicId,"raw");}catch(cleanupError){console.warn("Failed to clean up incomplete car document upload:",cleanupError);}}
   console.error("Car document upload/save failed:",error);
