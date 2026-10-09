@@ -63,6 +63,34 @@ export async function createFinanceEnquiry(req:Request,res:Response){
   data.followUpDate=date;
  }
  const enquiry=await FinanceEnquiry.create(data);
+
+ // Loan-related finance enquiries should immediately appear in the Loans module.
+ // Insurance renewal and gold resale remain enquiries and do not create loan records.
+ const loanTypeByService:Record<string,string>={
+  HOME_LOAN:"Home Loan",
+  CAR_LOAN:"Car Loan",
+  BUSINESS_LOAN:"Business Loan",
+  PERSONAL_LOAN:"Personal Loan"
+ };
+ const loanType=loanTypeByService[serviceCode];
+ if(loanType){
+  try{
+   await (await import("../models/Loan")).Loan.create({
+    loanId:await nextId("LOAN","loan"),
+    customerId:customer._id,
+    loanType,
+    requiredAmount:data.requiredAmount===undefined?0:Number(data.requiredAmount),
+    financeCompany:data.financeCompany||undefined,
+    notes:[data.notes, "Created from finance enquiry "+enquiry.enquiryId].filter(Boolean).join("\\n"),
+    status:"ENTERED",
+    applicationDate:new Date()
+   });
+  }catch(error){
+   // Avoid leaving an enquiry saved when its corresponding loan could not be created.
+   await enquiry.deleteOne().catch(()=>undefined);
+   throw error;
+  }
+ }
  res.status(201).json({success:true,data:await enquiry.populate([{path:"customerId",select:"customerId name mobile email"},{path:"assignedTo",select:"name email role"}])});
 }
 
