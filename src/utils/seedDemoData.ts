@@ -42,10 +42,22 @@ export async function clearDemoData() {
   const demoOperationalExpenseIds = ["OPX-901","OPX-902","OPX-903","OPX-904","OPX-905","OPX-906"];
   const demoLoanDocumentIds = ["LDOC-901","LDOC-902","LDOC-903","LDOC-904","LDOC-905","LDOC-906","LDOC-907","LDOC-908","LDOC-909","LDOC-910","LDOC-911","LDOC-912"];
 
+  const demoLoanRows = await prisma.loan.findMany({
+    where: { loanId: { in: demoLoanIds }, notes: DEMO },
+    select: { id: true }
+  });
+  const demoLoanRecordIds = demoLoanRows.map(row => row.id);
+  const demoCarRows = await prisma.car.findMany({
+    where: { vehicleId: { in: demoCarIds }, notes: DEMO },
+    select: { id: true }
+  });
+  const demoCarRecordIds = demoCarRows.map(row => row.id);
+
   await prisma.loanDocument.deleteMany({ where: { documentId: { in: demoLoanDocumentIds }, notes: "Demo checklist only; no real file attached." } });
 
   await prisma.loanFollowUp.deleteMany({
     where: {
+      loanId: { in: demoLoanRecordIds },
       note: { in: [
         "Collect final property documents - DEMO",
         "Check bank review status - DEMO",
@@ -72,6 +84,7 @@ export async function clearDemoData() {
 
   await prisma.carExpense.deleteMany({
     where:{
+      carId:{in:demoCarRecordIds},
       description:{in:[
         "Periodic service - DEMO",
         "Vehicle detailing - DEMO",
