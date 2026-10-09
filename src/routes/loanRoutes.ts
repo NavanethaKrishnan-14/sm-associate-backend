@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/auth";
-import { createFollowUp,createLoan,deleteFollowUp,deleteLoan,getLoan,listFollowUps,listLoans,updateFollowUp,updateLoan,updateLoanStatus } from "../controllers/loanController";
+import { createFollowUp,createLoan,deleteFollowUp,deleteLoan,getLoan,listFollowUps,listLoans,updateFollowUp,updateLoan,updateLoanStatus,updateLoanDocuments,uploadLoanDocument } from "../controllers/loanController";
+import { loanDocumentUpload } from "../middleware/loanDocumentUpload";
 const router=Router();
 router.get("/follow-ups",listFollowUps);
 router.get("/",listLoans);
 router.post("/",createLoan);
 router.get("/:id",getLoan);
+router.post("/:id/documents/:documentKey",loanDocumentUpload.single("file"),uploadLoanDocument);
+router.patch("/:id/documents",updateLoanDocuments);
 router.patch("/:id",updateLoan);
 router.put("/:id",updateLoan);
 router.delete("/:id",requireAdmin,deleteLoan);
