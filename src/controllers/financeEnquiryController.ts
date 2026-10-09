@@ -105,3 +105,16 @@ export async function updateFinanceEnquiry(req:Request,res:Response){
  const enquiry=await FinanceEnquiry.findById(updated._id).populate("customerId","customerId name mobile email").populate("assignedTo","name email role");
  return res.json({success:true,data:enquiry});
 }
+
+export async function deleteFinanceEnquiry(req:Request,res:Response){
+ const enquiryId=await resolveEnquiryId(req.params.id);
+ if(!enquiryId)return res.status(404).json({success:false,message:"Finance enquiry not found."});
+ try{
+  await prisma.financeEnquiry.delete({where:{id:enquiryId}});
+  return res.status(200).json({success:true,message:"Finance enquiry deleted successfully.",data:{id:enquiryId}});
+ }catch(error:any){
+  if(error?.code==="P2025")return res.status(404).json({success:false,message:"Finance enquiry not found."});
+  console.error("Finance enquiry delete failed:",error);
+  throw error;
+ }
+}
