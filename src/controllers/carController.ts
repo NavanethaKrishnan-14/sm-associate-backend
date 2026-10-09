@@ -238,9 +238,29 @@ export async function createCar(req:Request,res:Response){
   data.documents={carBook:Boolean(documents.carBook),carInsurance:Boolean(documents.carInsurance),agreement:Boolean(documents.agreement),customDocuments:uniqueCustomDocuments};
  }
  const car=await Car.create(data);
- const populated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
- if(!populated)return res.status(500).json({success:false,message:"Vehicle was created but could not be loaded after creation."});
- res.status(201).json({success:true,data:{...populated.toObject(),car:populated,seller}});
+
+ // Query.populate() in the Prisma-backed compatibility repository returns a
+ // plain object, not a Mongoose document. Calling populated.toObject() here
+ // throws after the INSERT has committed, so the client sees HTTP 500 even
+ // though the vehicle is already saved.
+ let populated:any=null;
+ try{
+  populated=await Car.findById(car._id).populate("sellerId","customerId name mobile email city");
+ }catch(error){
+  console.error("Vehicle created but relation lookup failed:",error);
+ }
+
+ const createdData=typeof (car as any).toObject==="function"
+  ?(car as any).toObject()
+  :{...(car as any)};
+ const populatedData=populated
+  ?(typeof populated.toObject==="function"?populated.toObject():{...populated})
+  :createdData;
+ return res.status(201).json({
+  success:true,
+  message:"Vehicle created successfully.",
+  data:{...populatedData,car:populatedData,seller:seller?{...(typeof seller.toObject==="function"?seller.toObject():seller)}:null}
+ });
 }
 export async function listCarExpenses(req:Request,res:Response){
  const rawCarId=req.query.carId?String(req.query.carId):undefined;
