@@ -8,7 +8,7 @@ type DocumentItem={
   id:string; name:string; originalName:string; url?:string;
   source:"Customer"|"Car Buying"|"Car Sold"|"Loan";
   recordId:string; recordLabel:string; uploadedAt?:Date; size?:number;
-  documentKey:string; downloadPath:string; documentName?:string;
+  documentKey:string; downloadPath:string; documentName?:string; status?:string;
 };
 
 function addFixed(list:DocumentItem[],meta:any,name:string,source:DocumentItem["source"],recordId:string,recordLabel:string,key:string,downloadPath:string){
@@ -16,10 +16,11 @@ function addFixed(list:DocumentItem[],meta:any,name:string,source:DocumentItem["
 }
 
 export async function listDocuments(_req:Request,res:Response){
-  const [cars,loans,sales]=await Promise.all([
+  const [cars,loans,sales,loanChecklist]=await Promise.all([
     Car.find().populate("sellerId","customerId name").sort({createdAt:-1}),
     Loan.find().populate("customerId","customerId name").sort({createdAt:-1}),
-    CarSale.find().populate("carId","vehicleId registrationNumber make model").populate("buyerId","customerId name").sort({createdAt:-1})
+    CarSale.find().populate("carId","vehicleId registrationNumber make model").populate("buyerId","customerId name").sort({createdAt:-1}),
+    prisma.loanDocument.findMany({orderBy:{createdAt:"desc"},include:{loan:{include:{customer:{select:{id:true,customerId:true,name:true}}}}}})
   ]);
   const documents:DocumentItem[]=[];
 
@@ -78,6 +79,23 @@ export async function listDocuments(_req:Request,res:Response){
       const name=String(item.name);
       documents.push({id:"Loan-"+loan._id+"-custom-"+name,name,originalName:item.originalName||name,url:item.url,source:"Loan",recordId:String(loan._id),recordLabel:label,uploadedAt:item.uploadedAt,size:item.size,documentKey:"custom",documentName:name,downloadPath:"/loans/"+loan._id+"/documents/custom/download?documentName="+encodeURIComponent(name)});
     }
+  }
+
+  for(const item of loanChecklist){
+    const loan:any=item.loan||{};
+    const customer:any=loan.customer||{};
+    documents.push({
+      id:item.documentId,
+      name:item.name,
+      originalName:item.originalName||"No file attached — demo checklist",
+      source:"Loan",
+      recordId:String(item.loanId),
+      recordLabel:[loan.loanId,customer.customerId,customer.name,loan.loanType].filter(Boolean).join(" - ")||String(item.loanId),
+      uploadedAt:item.uploadedAt||item.createdAt,
+      documentKey:"checklist",
+      downloadPath:"",
+      status:item.status
+    });
   }
 
   documents.sort((a,b)=>new Date(b.uploadedAt||0).getTime()-new Date(a.uploadedAt||0).getTime());
