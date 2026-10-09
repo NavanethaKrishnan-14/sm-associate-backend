@@ -152,21 +152,21 @@ export async function updateCarStatus(req:Request,res:Response){
 export async function updateCar(req:Request,res:Response){
  const carId=await resolveCarId(req.params.id);
  if(!carId)return res.status(404).json({success:false,message:"Car not found."});
- const car=await Car.findById(carId);
+ const car=await prisma.car.findUnique({where:{id:carId}});
  if(!car)return res.status(404).json({success:false,message:"Car not found."});
  const body=req.body||{};
  const patch:any={};
  if(body.status!==undefined&&req.user?.role!=="ADMIN"){
   return res.status(403).json({success:false,message:"Only ADMIN can change vehicle status."});
  }
- for(const key of ["sellerId","registrationNumber","make","model","fuel","notes","purchaseDate","status"]){
+ for(const key of ["registrationNumber","make","model","fuel","notes","purchaseDate","status"]){
   if(body[key]!==undefined)patch[key]=body[key];
  }
  if(body.sellerId!==undefined){
   const sellerId=await resolveCustomerId(body.sellerId);
-  const seller=sellerId?await Customer.findById(sellerId):null;
+  const seller=sellerId?await prisma.customer.findUnique({where:{id:sellerId}}):null;
   if(!seller)return res.status(400).json({success:false,message:"Seller/customer not found."});
-  patch.sellerId=seller._id;
+  patch.sellerId=seller.id;
  }
  for(const key of ["year","ownerNumber","km","purchasePrice"]){
   if(body[key]!==undefined&&body[key]!==null&&String(body[key]).trim()!==""){
@@ -183,15 +183,15 @@ export async function updateCar(req:Request,res:Response){
   const status=String(patch.status);
   if(!["AVAILABLE","RESERVED","SOLD"].includes(status))return res.status(400).json({success:false,message:"Invalid car status."});
   if(status==="SOLD"){
-   const sale=await CarSale.findOne({carId:car._id});
+   const sale=await CarSale.findOne({carId:car.id});
    if(!sale)return res.status(400).json({success:false,message:"A car can be marked SOLD only after a sale is recorded."});
   }
  }
  if(!Object.keys(patch).length)return res.status(400).json({success:false,message:"No vehicle fields were provided to update."});
- const updated=await Car.findByIdAndUpdate(car._id,{$set:patch},{new:true,runValidators:true}).populate("sellerId","customerId name mobile email city");
- if(!updated)return res.status(404).json({success:false,message:"Car not found."});
- res.json({success:true,data:updated});
+ const updated=await prisma.car.update({where:{id:car.id},data:patch,include:{seller:{select:{id:true,customerId:true,name:true,mobile:true,email:true,city:true}}}});
+ return res.json({success:true,data:{...updated,_id:updated.id,sellerId:updated.seller?{...updated.seller,_id:updated.seller.id}:null}});
 }
+
 export async function createCar(req:Request,res:Response){
  let seller:any=null;
  if(req.body.sellerId){
