@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdmin,requireStaffOrAdmin } from "../middleware/auth";
+import { requireAdmin } from "../middleware/auth";
 import { createFollowUp,createLoan,deleteFollowUp,deleteLoan,getLoan,listFollowUps,listLoans,updateFollowUp,updateLoan,updateLoanStatus } from "../controllers/loanController";
 const router=Router();
 router.get("/follow-ups",listFollowUps);
