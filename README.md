@@ -24,25 +24,9 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
-`prisma:migrate` applies the checked-in production migrations.
+`prisma:migrate` applies the checked-in production migrations. The Vercel build also applies pending migrations using the configured database connection.
 
-After the database migrations have completed and the configured admin has logged in once, you can explicitly add the demo dataset:
-
-```bash
-npm run seed:demo
-```
-
-Run this command from a trusted terminal with `DATABASE_URL` set to the intended Vercel production PostgreSQL database. You can pull the configured Vercel environment variables with the Vercel CLI, verify the target database before running the command, and never run it against a different local database by mistake. This seeds reserved demo IDs for customers, loans, loan-document checklist items, cars bought and sold, vehicle expenses, finance enquiries, and operational expenses. It removes/recreates only those reserved demo records; it refuses to proceed if reserved IDs collide with non-demo records, and it does not clear real records or Dashboard Notes. Demo checklist items are metadata only and do not pretend that real files were uploaded.
-
-To remove only the demo dataset later:
-
-```bash
-npm run seed:demo:clear
-```
-
-Do not run the seed command before `npm run prisma:migrate` completes successfully.
-
-Start the API:
+Start the API locally:
 
 ```bash
 npm run dev
@@ -62,7 +46,7 @@ For customer documents, use the multipart upload endpoint.
 
 ## Authentication
 
-The API uses JWT authentication. Configure:
+Configure these environment variables:
 
 ```env
 JWT_SECRET=replace-with-a-long-random-secret
