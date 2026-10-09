@@ -19,7 +19,17 @@ export async function login(req:Request,res:Response){
   const token=signToken({userId:user.id,role:user.role});
 
 
-  return res.status(200).json({success:true,message:"Login successful.",data:{token,accessToken:token,user:publicUser(user)}});
+  const safeUser = publicUser(user);
+
+  // Return the token in both the established data envelope and at the top
+  // level for clients or proxies that unwrap the response differently.
+  return res.status(200).json({
+    success: true,
+    message: "Login successful.",
+    token,
+    accessToken: token,
+    data: { token, accessToken: token, user: safeUser }
+  });
 }
 
 export async function me(req:Request,res:Response){ return res.json({success:true,data:req.user}); }
