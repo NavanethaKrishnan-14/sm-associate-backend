@@ -375,7 +375,15 @@ export async function sellCar(req:Request,res:Response){
    });
   }
 
-  const saleId=await nextId("SALE","carSale");
+  // Counters may lag behind existing rows after a database restore/import.
+  // Skip already-used public sale IDs before attempting the unique insert.
+  let saleId=await nextId("SALE","carSale");
+  for(let attempt=0;attempt<20;attempt++){
+   const duplicateId=await prisma.carSale.findUnique({where:{saleId},select:{id:true}});
+   if(!duplicateId)break;
+   saleId=await nextId("SALE","carSale");
+   if(attempt===19)throw new Error("Unable to allocate a unique sale reference. Please retry.");
+  }
   const sale=await prisma.$transaction(async(tx:any)=>{
    const car=await tx.car.findUnique({
     where:{id:carId},
@@ -432,7 +440,31 @@ export async function sellCar(req:Request,res:Response){
    return res.status(error.statusCode).json({success:false,message:error.message});
   }
   if(error?.code==="P2002"){
-   return res.status(409).json({success:false,message:"A sale already exists for this vehicle. Refresh the inventory to see the latest status."});
+   // A concurrent request may have completed the same car sale after the
+   // pre-check. Only treat it as a successful retry if this car has a sale.
+   const existing=await prisma.carSale.findUnique({
+    where:{carId},
+    include:{
+     buyer:{select:{id:true,customerId:true,name:true,mobile:true}},
+     car:{select:{id:true,vehicleId:true,registrationNumber:true,make:true,model:true,purchasePrice:true,status:true}}
+    }
+   });
+   if(existing){
+    await prisma.car.updateMany({where:{id:carId,status:{not:"SOLD"}},data:{status:"SOLD"}});
+    return res.status(200).json({
+     success:true,
+     message:"This vehicle sale was already recorded. The existing sale has been restored to Completed Sales.",
+     data:{
+      ...existing,
+      _id:existing.id,
+      carId:existing.car?{...existing.car,_id:existing.car.id}:existing.carId,
+      buyerId:existing.buyer?{...existing.buyer,_id:existing.buyer.id}:existing.buyerId,
+      car:existing.car?{...existing.car,status:"SOLD",_id:existing.car.id}:existing.car,
+      buyer:existing.buyer?{...existing.buyer,_id:existing.buyer.id}:existing.buyer
+     }
+    });
+   }
+   return res.status(409).json({success:false,message:"The sale reference conflicted with an existing record. Please tap Sell Car again; no duplicate sale was created."});
   }
   console.error("Car sale transaction failed:",error);
   return res.status(500).json({success:false,message:"Unable to complete the vehicle sale.",code:"CAR_SALE_FAILED"});
