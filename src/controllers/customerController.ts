@@ -188,25 +188,34 @@ export async function deleteCustomer(req:Request,res:Response){
  const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  try{
-  // Explicitly detach all known customer relations inside one transaction. This
-  // preserves loans, enquiries, vehicle records, and sale history while removing
-  // reliance on the database applying ON DELETE SET NULL automatically.
+  const deletedId=String(customer._id);
   await prisma.$transaction(async(tx)=>{
-   const id=String(customer._id);
-   await tx.loan.updateMany({where:{customerId:id},data:{customerId:null}});
-   await tx.financeEnquiry.updateMany({where:{customerId:id},data:{customerId:null}});
-   await tx.car.updateMany({where:{sellerId:id},data:{sellerId:null}});
-   await tx.carSale.updateMany({where:{buyerId:id},data:{buyerId:null}});
-   await tx.customer.delete({where:{id}});
+   const currentCustomer=await tx.customer.findUnique({where:{id:deletedId},select:{documents:true}});
+   const linkedLoans=await tx.loan.findMany({where:{customerId:deletedId},select:{id:true,documents:true}});
+   const publicIds=new Set<string>();
+   const collectDocumentIds=(value:any):void=>{
+    if(!value||typeof value!=="object")return;
+    if(Array.isArray(value)){for(const item of value)collectDocumentIds(item);return;}
+    for(const [key,child] of Object.entries(value)){
+     if((key==="publicId"||key==="storedName")&&typeof child==="string"&&child.trim())publicIds.add(child.trim());
+     else if(child&&typeof child==="object")collectDocumentIds(child);
+    }
+   };
+   collectDocumentIds(currentCustomer?.documents);
+   for(const loan of linkedLoans)collectDocumentIds(loan.documents);
+   // Delete customer-specific services and their dependent follow-ups/checklist rows.
+   await tx.financeEnquiry.deleteMany({where:{customerId:deletedId}});
+   await tx.loan.deleteMany({where:{customerId:deletedId}});
+   // Keep vehicle inventory and completed sale history, but detach the customer.
+   await tx.car.updateMany({where:{sellerId:deletedId},data:{sellerId:null}});
+   await tx.carSale.updateMany({where:{buyerId:deletedId},data:{buyerId:null}});
+   if(publicIds.size)await tx.document.deleteMany({where:{publicId:{in:[...publicIds]}}});
+   await tx.customer.delete({where:{id:deletedId}});
   });
-  return res.json({success:true,message:"Customer deleted successfully. Linked business history was preserved.",data:{id:String(customer._id)}});
+  return res.json({success:true,message:"Customer and their documents, finance enquiries, and loans were deleted successfully. Vehicle inventory and completed sale history were preserved.",data:{id:deletedId}});
  }catch(error){
   console.error("Customer deletion failed:",error);
-  return res.status(409).json({
-   success:false,
-   message:"Customer could not be deleted. The database rejected the delete; check the latest backend runtime logs for CUSTOMER_DELETE_FAILED.",
-   code:"CUSTOMER_DELETE_FAILED"
-  });
+  return res.status(409).json({success:false,message:"Customer and linked services could not be deleted. Check backend runtime logs for CUSTOMER_DELETE_FAILED.",code:"CUSTOMER_DELETE_FAILED"});
  }
 }
 export async function getCustomerHistory(req:Request,res:Response){
