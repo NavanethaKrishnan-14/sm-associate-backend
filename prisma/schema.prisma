@@ -89,7 +89,7 @@ model Customer {
 model Car {
   id                 String   @id @default(cuid())
   vehicleId          String   @unique
-  sellerId           String
+  sellerId           String?
   registrationNumber String
   make               String
   model              String
@@ -104,7 +104,7 @@ model Car {
   documents          Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-  seller             Customer @relation("CarSeller", fields: [sellerId], references: [id])
+  seller             Customer? @relation("CarSeller", fields: [sellerId], references: [id], onDelete: SetNull)
   expenses           CarExpense[]
   sale               CarSale?
 }
@@ -125,7 +125,7 @@ model CarSale {
   id              String   @id @default(cuid())
   saleId          String   @unique
   carId           String   @unique
-  buyerId         String
+  buyerId         String?
   sellingPrice    Float
   sellingExpenses Float    @default(0)
   totalInvestment Float
@@ -136,7 +136,7 @@ model CarSale {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   car             Car      @relation(fields: [carId], references: [id])
-  buyer           Customer @relation("SaleBuyer", fields: [buyerId], references: [id])
+  buyer           Customer? @relation("SaleBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
 }
 
 model FinanceService {
@@ -156,7 +156,7 @@ model FinanceService {
 model FinanceEnquiry {
   id             String         @id @default(cuid())
   enquiryId      String         @unique
-  customerId     String
+  customerId     String?
   serviceCode    String
   financeCompany String?
   requiredAmount Float?
@@ -166,7 +166,7 @@ model FinanceEnquiry {
   assignedTo     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  customer       Customer       @relation(fields: [customerId], references: [id])
+  customer       Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   service        FinanceService @relation(fields: [serviceCode], references: [code])
   assignee       User?          @relation("EnquiryAssignedTo", fields: [assignedTo], references: [id])
 }
@@ -174,7 +174,7 @@ model FinanceEnquiry {
 model Loan {
   id                       String      @id @default(cuid())
   loanId                   String      @unique
-  customerId               String
+  customerId               String?
   loanType                 String
   requiredAmount           Float
   approvedAmount            Float?
@@ -190,7 +190,7 @@ model Loan {
   assignedTo                String?
   createdAt                 DateTime    @default(now())
   updatedAt                 DateTime    @updatedAt
-  customer                  Customer    @relation(fields: [customerId], references: [id])
+  customer                  Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   assignee                  User?       @relation("LoanAssignedTo", fields: [assignedTo], references: [id])
   followUps                 LoanFollowUp[]
   documentChecklist         LoanDocument[]
