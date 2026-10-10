@@ -80,6 +80,8 @@ async function syncFinanceEnquiriesToLoans(){
   }
   for(const enquiry of enquiries){
    if(linkedEnquiryIds.has(String(enquiry.enquiryId)))continue;
+   // Customer links are nullable so historical enquiries remain valid after customer deletion.
+   if(!enquiry.customerId)continue;
    const customer=await prisma.customer.findUnique({where:{id:enquiry.customerId},select:{id:true}});
    if(!customer)continue;
    const loanType=FINANCE_ENQUIRY_LOAN_TYPES[enquiry.serviceCode];
