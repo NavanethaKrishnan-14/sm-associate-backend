@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/db";
 import { Customer } from "../models/Customer";
 import { Loan } from "../models/Loan";
 import { Car } from "../models/Car";
@@ -187,13 +188,26 @@ export async function deleteCustomer(req:Request,res:Response){
  const customer=await Customer.findById(customerId);
  if(!customer)return res.status(404).json({success:false,message:"Customer not found."});
  try{
-  // Customer relations use ON DELETE SET NULL, so business records and their
-  // financial history remain intact while the deleted customer is detached.
-  await customer.deleteOne();
+  // Explicitly detach all known customer relations inside one transaction. This
+  // preserves loans, enquiries, vehicle records, and sale history while removing
+  // reliance on the database applying ON DELETE SET NULL automatically.
+  await prisma.$transaction(async(tx)=>{
+   const id=String(customer._id);
+   await tx.loan.updateMany({where:{customerId:id},data:{customerId:null}});
+   await tx.financeEnquiry.updateMany({where:{customerId:id},data:{customerId:null}});
+   await tx.car.updateMany({where:{sellerId:id},data:{sellerId:null}});
+   await tx.carSale.updateMany({where:{buyerId:id},data:{buyerId:null}});
+   await tx.customer.delete({where:{id}});
+  });
   return res.json({success:true,message:"Customer deleted successfully. Linked business history was preserved.",data:{id:String(customer._id)}});
  }catch(error){
   console.error("Customer deletion failed:",error);
-  return res.status(409).json({success:false,message:"Customer could not be deleted. Please try again or contact support.",code:"CUSTOMER_DELETE_FAILED"});
+  const detail=error instanceof Error?error.message:String(error||"Unknown deletion error");
+  return res.status(409).json({
+   success:false,
+   message:"Customer could not be deleted. The database rejected the delete; check the latest backend runtime logs for CUSTOMER_DELETE_FAILED.",
+   code:"CUSTOMER_DELETE_FAILED"
+  });
  }
 }
 export async function getCustomerHistory(req:Request,res:Response){
