@@ -202,7 +202,6 @@ export async function deleteCustomer(req:Request,res:Response){
   return res.json({success:true,message:"Customer deleted successfully. Linked business history was preserved.",data:{id:String(customer._id)}});
  }catch(error){
   console.error("Customer deletion failed:",error);
-  const detail=error instanceof Error?error.message:String(error||"Unknown deletion error");
   return res.status(409).json({
    success:false,
    message:"Customer could not be deleted. The database rejected the delete; check the latest backend runtime logs for CUSTOMER_DELETE_FAILED.",
