@@ -13,7 +13,6 @@ router.patch("/:id/documents",updateCustomerDocuments);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
 router.put("/:id",updateCustomer);
-// Staff and admins may delete only customers without linked business records.
-// deleteCustomer enforces referential checks and preserves transaction history.
+// Staff and admins may delete customers. Database ON DELETE SET NULL rules preserve linked business history.
 router.delete("/:id",requireStaffOrAdmin,deleteCustomer);
 export default router;
