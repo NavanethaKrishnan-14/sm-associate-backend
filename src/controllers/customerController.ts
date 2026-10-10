@@ -39,7 +39,13 @@ export async function createCustomer(req:Request,res:Response){
   });
  }
  data.customerId=await nextId("CUS","customer");
- return res.status(201).json({success:true,data:await Customer.create(data)});
+ const createdCustomer=await Customer.create(data);
+ // ModelInstance is a compatibility wrapper; return its plain record so JSON
+ // contains the customer id at data.id/data._id rather than data.data.id.
+ const customerRecord=typeof createdCustomer?.toObject==="function"
+  ?createdCustomer.toObject()
+  :createdCustomer;
+ return res.status(201).json({success:true,message:"Customer created successfully.",data:customerRecord});
 }
 export async function createCustomerDocumentUpload(req:Request,res:Response){
  const customerId=await resolveCustomerId(req.params.id);
