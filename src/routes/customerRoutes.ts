@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createCustomer,createCustomerDocumentUpload,completeCustomerDocumentUpload,uploadCustomerDocument,deleteCustomer,getCustomer,getCustomerHistory,listCustomers,updateCustomer,updateCustomerDocuments } from "../controllers/customerController";
-import { requireAdmin } from "../middleware/auth";
+import { requireStaffOrAdmin } from "../middleware/auth";
 import { customerDocumentUpload } from "../middleware/customerDocumentUpload";
 const router=Router();
 router.get("/",listCustomers);
@@ -13,5 +13,7 @@ router.patch("/:id/documents",updateCustomerDocuments);
 router.get("/:id",getCustomer);
 router.patch("/:id",updateCustomer);
 router.put("/:id",updateCustomer);
-router.delete("/:id",requireAdmin,deleteCustomer);
+// Staff and admins may delete only customers without linked business records.
+// deleteCustomer enforces referential checks and preserves transaction history.
+router.delete("/:id",requireStaffOrAdmin,deleteCustomer);
 export default router;
