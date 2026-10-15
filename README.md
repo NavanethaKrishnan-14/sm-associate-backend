@@ -64,3 +64,24 @@ Car profit = selling price - purchase price - buying expenses - selling expenses
 ## Swagger / OpenAPI
 
 The Swagger UI documents the REST endpoints and supports JWT authentication through the Authorize button. Start the backend with `npm run dev`, open the documentation URL, sign in through `POST /api/v1/auth/login`, and use the returned JWT as `Bearer <token>`.
+
+## Demo data (explicit opt-in)
+
+After setting `DATABASE_URL` in your local `.env` to the database you intend to populate, run:
+
+```bash
+npm install
+npx prisma generate
+npm run seed:demo
+```
+
+The demo seeder adds sample customers, vehicle inventory and expenses, a sale, loans, loan document checklist items, follow-ups, finance enquiries for every service, and operational expenses. It can be run again safely: it replaces only rows whose internal IDs start with `demo_`. It preserves real business records and all Dashboard Notes. It also ensures the seven finance services (Home Loan, Car Loan, Business Loan, Personal Loan, Insurance Renewal, Gold Resale, and DSA Finance) exist.
+
+To remove only the seeded demo transaction records later:
+
+```bash
+npm run seed:demo:clear
+```
+
+**Important:** These commands affect the database specified by `DATABASE_URL`. Verify the target database before running them. Do not commit your `.env` file or share database credentials.
+
