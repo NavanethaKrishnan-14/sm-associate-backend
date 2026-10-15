@@ -172,6 +172,7 @@ async function seed() {
   console.log('Demo data seeded successfully:', JSON.stringify(counts, null, 2));
 }
 
-seed()
-  .catch((error) => { console.error('Demo seed failed:', error); process.exitCode = 1; })
+const clearOnly = process.argv.includes('--clear');
+(clearOnly ? clearDemoData().then(() => console.log('Demo transaction data cleared. Real records, finance service catalogue, and Dashboard Notes were preserved.')) : seed())
+  .catch((error) => { console.error(clearOnly ? 'Demo clear failed:' : 'Demo seed failed:', error); process.exitCode = 1; })
   .finally(async () => { await prisma.$disconnect(); });
