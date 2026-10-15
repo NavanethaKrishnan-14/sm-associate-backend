@@ -38,7 +38,7 @@ async function seed() {
   for (const service of services) {
     await prisma.financeService.upsert({
       where: { code: service.code },
-      update: { name: service.name, category: service.category, description: service.description, active: true, sortOrder: service.sortOrder },
+      update: { active: true },
       create: { ...service, active: true },
     });
   }
